@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+#PBS -N dllm_notebook
+#PBS -P mausam.inlp.pragya.spons
+#PBS -q standard
+#PBS -l select=1:ncpus=4:mem=16gb
+#PBS -l walltime=02:00:00
+#PBS -j oe
+#PBS -o logs/
+
+set -euo pipefail
+umask 077
+cd "${PBS_O_WORKDIR:?Submit from repository root}"
+mkdir -p logs results/summary results/figures notebooks
+PYTHON="${PROJECT_PYTHON:-$PBS_O_WORKDIR/../col873_ass2/.venv-gpu/bin/python}"
+"$PYTHON" scripts/render_comparison_notebook.py

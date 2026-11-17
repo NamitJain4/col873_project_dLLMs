@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+#PBS -N dllm_goldfish
+#PBS -P mausam.inlp.pragya.spons
+#PBS -q standard
+#PBS -l select=1:ncpus=4:ngpus=1:mem=40gb
+#PBS -l walltime=24:00:00
+#PBS -j oe
+#PBS -o logs/
+
+set -euo pipefail
+umask 077
+cd "${PBS_O_WORKDIR:?Submit from repository root}"
+mkdir -p checkpoints results/mia results/summary logs
+export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 TOKENIZERS_PARALLELISM=false PYTHONUNBUFFERED=1 OMP_NUM_THREADS=4
+PYTHON="${PROJECT_PYTHON:-$PBS_O_WORKDIR/../col873_ass2/.venv-gpu/bin/python}"
+
+for model in qwen llama llada dream; do
+  if [[ ! -s "checkpoints/goldfish_${model}/run_manifest.json" ]]; then
+    "$PYTHON" scripts/train_canary.py --model "$model" --loss-drop-fraction 0.25 \
+      --output "checkpoints/goldfish_${model}"
+  fi
+  "$PYTHON" scripts/eval_canary.py --model "$model" \
+    --adapter "checkpoints/goldfish_${model}" \
+    --output "results/mia/goldfish_${model}.jsonl"
+done
+
+"$PYTHON" scripts/validate_mia.py --modes goldfish > results/summary/mia_goldfish_validation.tsv
+"$PYTHON" scripts/summarize_canary.py results/mia/full_*.jsonl \
+  results/mia/goldfish_*.jsonl > results/summary/mia_goldfish.tsv
+echo "Goldfish-style loss-omission comparison completed"

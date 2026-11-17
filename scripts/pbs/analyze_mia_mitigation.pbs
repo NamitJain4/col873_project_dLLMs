@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+#PBS -N dllm_mia_compare
+#PBS -P mausam.inlp.pragya.spons
+#PBS -q standard
+#PBS -l select=1:ncpus=2:mem=8gb
+#PBS -l walltime=02:00:00
+#PBS -j oe
+#PBS -o logs/
+
+set -euo pipefail
+umask 077
+cd "${PBS_O_WORKDIR:?Submit from repository root}"
+mkdir -p results/summary logs
+PYTHON="${PROJECT_PYTHON:-$PBS_O_WORKDIR/../col873_ass2/.venv-gpu/bin/python}"
+"$PYTHON" scripts/compare_mia.py > results/summary/mia_mitigation_paired.tsv
+echo "Paired mitigation comparison completed"

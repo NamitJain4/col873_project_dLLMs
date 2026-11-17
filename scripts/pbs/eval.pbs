@@ -1,0 +1,109 @@
+#!/usr/bin/env bash
+#PBS -N dllm_eval
+#PBS -P mausam.inlp.pragya.spons
+#PBS -q standard
+#PBS -l select=1:ncpus=4:ngpus=1:mem=40gb
+#PBS -l walltime=24:00:00
+#PBS -j oe
+#PBS -o logs/
+
+set -euo pipefail
+umask 077
+cd "${PBS_O_WORKDIR:?Submit from repository root}"
+mkdir -p logs results
+
+MODEL="${MODEL:?Pass MODEL with qsub -v}"
+DATASET="${DATASET:-bbq_pilot}"
+case "$MODEL" in qwen|llama|llama31|llada|dream) ;; *) echo "Invalid MODEL" >&2; exit 2;; esac
+case "$DATASET" in bbq_pilot|bbq_balanced|bbq_full|bold_pilot|bold_full|crows_pilot|crows_full|stereoset_pilot|stereoset_full|followups|all_full) ;; *) echo "Invalid DATASET" >&2; exit 2;; esac
+if [[ "$DATASET" == followups || "$DATASET" == all_full ]]; then
+  if [[ "$DATASET" == followups ]]; then
+    sources=(bbq_balanced bold_pilot crows_pilot stereoset_pilot)
+  else
+    sources=(bbq_full bold_full crows_full stereoset_full)
+  fi
+  for source in "${sources[@]}"; do
+    test -s "data/processed/${source}.jsonl" || { echo "Missing $source" >&2; exit 2; }
+  done
+else
+  test -s "data/processed/${DATASET}.jsonl" || { echo "Missing prepared dataset" >&2; exit 2; }
+fi
+
+export http_proxy="http://proxy22.iitd.ernet.in:3128"
+export https_proxy="$http_proxy"
+export HTTP_PROXY="$http_proxy"
+export HTTPS_PROXY="$http_proxy"
+export TOKENIZERS_PARALLELISM=false
+export PYTHONUNBUFFERED=1
+export OMP_NUM_THREADS=4
+
+if [[ "${OFFLINE:-0}" == 1 ]]; then
+  export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1
+  echo "Using cached Hugging Face files in offline mode"
+fi
+
+# Reuse the cluster proxy login method proven in COL873 assignment 1.
+PROXY_PID=""
+cleanup() {
+  if [[ -n "$PROXY_PID" ]]; then
+    kill "$PROXY_PID" 2>/dev/null || true
+    wait "$PROXY_PID" 2>/dev/null || true
+  fi
+}
+trap cleanup EXIT
+if [[ "${OFFLINE:-0}" != 1 ]] && ! curl -fsSI --max-time 10 https://huggingface.co >/dev/null; then
+  PROXY_CONFIG="/home/cse/btech/cs1230483/proxy.sh"
+  IITD_PROXY_PASSWORD=$(sed -n 's/^password="\([^"]*\)";.*/\1/p' "$PROXY_CONFIG" | head -1)
+  [[ -n "$IITD_PROXY_PASSWORD" ]] || { echo "Cluster proxy credential missing" >&2; exit 2; }
+  export IITD_PROXY_PASSWORD
+  (cd /home/cse/btech/cs1230483/HPC-IIT-Delhi && exec python3 -u iitdproxy.py proxyAuth.txt) >"logs/proxy-${PBS_JOBID}.log" 2>&1 &
+  PROXY_PID=$!
+  unset IITD_PROXY_PASSWORD
+  for _ in {1..12}; do
+    curl -fsSI --max-time 5 https://huggingface.co >/dev/null && break
+    sleep 5
+  done
+fi
+if [[ "${OFFLINE:-0}" != 1 ]]; then
+  curl -fsSI --max-time 10 https://huggingface.co >/dev/null || { echo "Cannot access Hugging Face" >&2; exit 2; }
+fi
+
+PYTHON="${PROJECT_PYTHON:-$PBS_O_WORKDIR/../col873_ass2/.venv-gpu/bin/python}"
+[[ -x "$PYTHON" ]] || { echo "Missing Python: $PYTHON" >&2; exit 2; }
+"$PYTHON" - <<'PY'
+import torch, transformers, huggingface_hub
+assert torch.cuda.is_available(), "PBS allocated a GPU but PyTorch cannot access it"
+print("torch", torch.__version__, "transformers", transformers.__version__, "GPU", torch.cuda.get_device_name(0), flush=True)
+PY
+nvidia-smi --query-gpu=name,memory.total,memory.free --format=csv,noheader
+if [[ "$DATASET" == all_full ]]; then
+  "$PYTHON" scripts/eval_bbq.py --model "$MODEL" --data data/processed/bbq_full.jsonl \
+    --output "results/bbq_bbq_full_${MODEL}.jsonl" --new-tokens 32 --steps 16
+  "$PYTHON" scripts/eval_bold.py --model "$MODEL" --data data/processed/bold_full.jsonl \
+    --output "results/bold_full_${MODEL}.jsonl"
+  "$PYTHON" scripts/eval_crows.py --model "$MODEL" --data data/processed/crows_full.jsonl \
+    --output "results/crows_full_${MODEL}.jsonl"
+  "$PYTHON" scripts/eval_stereoset.py --model "$MODEL" --data data/processed/stereoset_full.jsonl \
+    --output "results/stereoset_full_${MODEL}.jsonl"
+elif [[ "$DATASET" == followups ]]; then
+  "$PYTHON" scripts/eval_bbq.py --model "$MODEL" --data data/processed/bbq_balanced.jsonl \
+    --output "results/bbq_bbq_balanced_${MODEL}.jsonl" --new-tokens 32 --steps 16
+  "$PYTHON" scripts/eval_bold.py --model "$MODEL" --data data/processed/bold_pilot.jsonl \
+    --output "results/bold_pilot_${MODEL}.jsonl"
+  "$PYTHON" scripts/eval_crows.py --model "$MODEL" --data data/processed/crows_pilot.jsonl \
+    --output "results/crows_pilot_${MODEL}.jsonl"
+  "$PYTHON" scripts/eval_stereoset.py --model "$MODEL" --data data/processed/stereoset_pilot.jsonl \
+    --output "results/stereoset_pilot_${MODEL}.jsonl"
+elif [[ "$DATASET" == bold_pilot || "$DATASET" == bold_full ]]; then
+  "$PYTHON" scripts/eval_bold.py --model "$MODEL" --data "data/processed/${DATASET}.jsonl" \
+    --output "results/${DATASET}_${MODEL}.jsonl"
+elif [[ "$DATASET" == crows_pilot || "$DATASET" == crows_full ]]; then
+  "$PYTHON" scripts/eval_crows.py --model "$MODEL" --data "data/processed/${DATASET}.jsonl" \
+    --output "results/${DATASET}_${MODEL}.jsonl"
+elif [[ "$DATASET" == stereoset_pilot || "$DATASET" == stereoset_full ]]; then
+  "$PYTHON" scripts/eval_stereoset.py --model "$MODEL" --data "data/processed/${DATASET}.jsonl" \
+    --output "results/${DATASET}_${MODEL}.jsonl"
+else
+  "$PYTHON" scripts/eval_bbq.py --model "$MODEL" --data "data/processed/${DATASET}.jsonl" \
+    --output "results/bbq_${DATASET}_${MODEL}.jsonl" --new-tokens 32 --steps 16
+fi

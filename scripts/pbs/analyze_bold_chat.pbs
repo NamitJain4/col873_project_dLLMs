@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+#PBS -N dllm_bold_score
+#PBS -P mausam.inlp.pragya.spons
+#PBS -q standard
+#PBS -l select=1:ncpus=4:mem=16gb
+#PBS -l walltime=04:00:00
+#PBS -j oe
+#PBS -o logs/
+
+set -euo pipefail
+umask 077
+cd "${PBS_O_WORKDIR:?Submit from repository root}"
+mkdir -p results/summary results/sentiment logs
+PYTHON="${PROJECT_PYTHON:-$PBS_O_WORKDIR/../col873_ass2/.venv-gpu/bin/python}"
+"$PYTHON" scripts/validate_bold_chat.py > results/summary/bold_chat_validation.tsv
+"$PYTHON" scripts/score_bold_sentiment.py results/bold_chat_full_*.jsonl \
+  --summary results/summary/bold_chat_full_sentiment.tsv
+echo "Instructed BOLD validation and sentiment summaries completed"

@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+#PBS -N dllm_qwen_fetch
+#PBS -P mausam.inlp.pragya.spons
+#PBS -q standard
+#PBS -l select=1:ncpus=1:mem=8gb
+#PBS -l walltime=24:00:00
+#PBS -j oe
+#PBS -o logs/
+
+set -euo pipefail
+umask 077
+cd "${PBS_O_WORKDIR:?Submit from repository root}"
+mkdir -p logs
+export http_proxy="http://proxy22.iitd.ernet.in:3128"
+export https_proxy="$http_proxy" HTTP_PROXY="$http_proxy" HTTPS_PROXY="$http_proxy"
+export HF_HUB_DISABLE_XET=1 HF_HUB_DOWNLOAD_TIMEOUT=600 HF_HUB_ETAG_TIMEOUT=30
+
+PROXY_PID=""
+cleanup() {
+  if [[ -n "$PROXY_PID" ]]; then
+    kill "$PROXY_PID" 2>/dev/null || true
+    wait "$PROXY_PID" 2>/dev/null || true
+  fi
+}
+trap cleanup EXIT
+if ! curl -fsSI --max-time 10 https://huggingface.co >/dev/null; then
+  PROXY_CONFIG="/home/cse/btech/cs1230483/proxy.sh"
+  IITD_PROXY_PASSWORD=$(sed -n 's/^password="\([^"]*\)";.*/\1/p' "$PROXY_CONFIG" | head -1)
+  [[ -n "$IITD_PROXY_PASSWORD" ]] || { echo "Cluster proxy credential missing" >&2; exit 2; }
+  export IITD_PROXY_PASSWORD
+  (cd /home/cse/btech/cs1230483/HPC-IIT-Delhi && exec python3 -u iitdproxy.py proxyAuth.txt) >"logs/proxy-${PBS_JOBID}.log" 2>&1 &
+  PROXY_PID=$!
+  unset IITD_PROXY_PASSWORD
+  for _ in {1..24}; do
+    curl -fsSI --max-time 5 https://huggingface.co >/dev/null && break
+    sleep 5
+  done
+fi
+curl -fsSI --max-time 10 https://huggingface.co >/dev/null || { echo "Cannot access Hugging Face" >&2; exit 2; }
+
+PYTHON="${PROJECT_PYTHON:-$PBS_O_WORKDIR/../col873_ass2/.venv-gpu/bin/python}"
+"$PYTHON" scripts/prefetch_qwen.py

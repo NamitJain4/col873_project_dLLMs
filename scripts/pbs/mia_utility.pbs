@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+#PBS -N dllm_mia_util
+#PBS -P mausam.inlp.pragya.spons
+#PBS -q standard
+#PBS -l select=1:ncpus=4:ngpus=1:mem=40gb
+#PBS -l walltime=12:00:00
+#PBS -j oe
+#PBS -o logs/
+
+set -euo pipefail
+umask 077
+cd "${PBS_O_WORKDIR:?Submit from repository root}"
+test -s data/processed/synthetic_mia/utility_holdout.jsonl
+mkdir -p results/utility results/summary logs
+export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 TOKENIZERS_PARALLELISM=false PYTHONUNBUFFERED=1 OMP_NUM_THREADS=4
+PYTHON="${PROJECT_PYTHON:-$PBS_O_WORKDIR/../col873_ass2/.venv-gpu/bin/python}"
+for model in qwen llama llada dream; do
+  for mode in base full goldfish; do
+    "$PYTHON" scripts/eval_utility.py --model "$model" --mode "$mode" \
+      --output "results/utility/${mode}_${model}.jsonl"
+  done
+done
+"$PYTHON" scripts/summarize_utility.py > results/summary/mia_utility.tsv
+echo "Held-out synthetic utility comparison completed"

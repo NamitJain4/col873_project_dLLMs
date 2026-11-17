@@ -1,0 +1,13 @@
+__pycache__/
+.pytest_cache/
+.venv/
+data/processed/
+results/
+checkpoints/
+logs/
+*.o[0-9]*
+*.e[0-9]*
+.env
+*.token
+*.key
+notebooks/completed_runs_so_far.ipynb

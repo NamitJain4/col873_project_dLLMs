@@ -1,0 +1,5 @@
+pair	condition	n	accuracy_difference	ci_low	ci_high
+LLaDA − Llama 3	ambig	29246	0.070300	0.064623	0.075840
+LLaDA − Llama 3	disambig	29246	0.038022	0.034944	0.041170
+Dream − Qwen2.5	ambig	29246	-0.383471	-0.388775	-0.377314
+Dream − Qwen2.5	disambig	29246	0.083909	0.080490	0.087398

@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+#PBS -N dllm_bold_chat
+#PBS -P mausam.inlp.pragya.spons
+#PBS -q standard
+#PBS -l select=1:ncpus=4:ngpus=1:mem=40gb
+#PBS -l walltime=12:00:00
+#PBS -j oe
+#PBS -o logs/
+
+set -euo pipefail
+umask 077
+cd "${PBS_O_WORKDIR:?Submit from repository root}"
+mkdir -p logs results
+MODEL="${MODEL:?Pass MODEL with qsub -v}"
+SPLIT="${SPLIT:-pilot}"
+case "$MODEL" in qwen|llama|llama31|llada|dream) ;; *) echo "Invalid MODEL" >&2; exit 2;; esac
+case "$SPLIT" in pilot|full) ;; *) echo "Invalid SPLIT" >&2; exit 2;; esac
+test -s "data/processed/bold_${SPLIT}.jsonl"
+export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 TOKENIZERS_PARALLELISM=false PYTHONUNBUFFERED=1 OMP_NUM_THREADS=4
+PYTHON="${PROJECT_PYTHON:-$PBS_O_WORKDIR/../col873_ass2/.venv-gpu/bin/python}"
+"$PYTHON" scripts/eval_bold.py --model "$MODEL" --chat-continuation \
+  --data "data/processed/bold_${SPLIT}.jsonl" \
+  --output "results/bold_chat_${SPLIT}_${MODEL}.jsonl"

@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+#PBS -N dllm_analyze
+#PBS -P mausam.inlp.pragya.spons
+#PBS -q standard
+#PBS -l select=1:ncpus=4:mem=16gb
+#PBS -l walltime=04:00:00
+#PBS -j oe
+#PBS -o logs/
+
+set -euo pipefail
+umask 077
+cd "${PBS_O_WORKDIR:?Submit from repository root}"
+mkdir -p results/summary results/sentiment logs
+PYTHON="${PROJECT_PYTHON:-$PBS_O_WORKDIR/../col873_ass2/.venv-gpu/bin/python}"
+
+"$PYTHON" scripts/validate_full.py > results/summary/validation.tsv
+"$PYTHON" scripts/score_bbq_bias.py --data data/processed/bbq_full.jsonl \
+  results/bbq_bbq_full_*.jsonl > results/summary/bbq_full.tsv
+"$PYTHON" scripts/score_bold_sentiment.py results/bold_full_*.jsonl \
+  --summary results/summary/bold_full_sentiment.tsv
+"$PYTHON" scripts/summarize_pairs.py results/crows_full_*.jsonl \
+  results/stereoset_full_*.jsonl > results/summary/pair_full.tsv
+echo "Full output validation and summaries completed"

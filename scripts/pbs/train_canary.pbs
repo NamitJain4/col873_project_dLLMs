@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+#PBS -N dllm_canary
+#PBS -P mausam.inlp.pragya.spons
+#PBS -q standard
+#PBS -l select=1:ncpus=4:ngpus=1:mem=40gb
+#PBS -l walltime=24:00:00
+#PBS -j oe
+#PBS -o logs/
+
+set -euo pipefail
+umask 077
+cd "${PBS_O_WORKDIR:?Submit from repository root}"
+MODEL="${MODEL:?Pass MODEL with qsub -v}"
+MODE="${MODE:-pilot}"
+case "$MODEL" in qwen|llama|llada|dream) ;; *) echo "Invalid MODEL" >&2; exit 2;; esac
+case "$MODE" in pilot|full) ;; *) echo "Invalid MODE" >&2; exit 2;; esac
+test -s data/processed/synthetic_mia/train.jsonl
+test -s data/processed/synthetic_mia/candidates.jsonl
+mkdir -p checkpoints logs
+export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 TOKENIZERS_PARALLELISM=false PYTHONUNBUFFERED=1 OMP_NUM_THREADS=4
+PYTHON="${PROJECT_PYTHON:-$PBS_O_WORKDIR/../col873_ass2/.venv-gpu/bin/python}"
+if [[ "$MODE" == pilot ]]; then
+  "$PYTHON" scripts/train_canary.py --model "$MODEL" --max-examples 16 \
+    --output "checkpoints/pilot_${MODEL}"
+else
+  "$PYTHON" scripts/train_canary.py --model "$MODEL" \
+    --output "checkpoints/full_${MODEL}"
+fi
