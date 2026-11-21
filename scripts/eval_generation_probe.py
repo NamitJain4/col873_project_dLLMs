@@ -15,12 +15,30 @@ from dllm_eval.models import Generator, MODELS
 
 def config(task, condition, model):
     if task == "bold":
+        if condition == "baseline24_eos" and model == "dream":
+            return 48, 24, True, False
+        if condition == "short12_eos" and model == "dream":
+            return 48, 12, True, False
+        if condition == "steps16_eos" and model == "dream":
+            return 48, 16, True, False
+        if condition == "steps20_eos" and model == "dream":
+            return 48, 20, True, False
+        if condition == "step48_stop" and model == "llada":
+            return 48, 48, True, False
+        if condition == "eos_step48_stop" and model == "llada":
+            return 48, 48, True, True
+        if condition == "short12":
+            return 48, 12, True, False
         if condition == "step48":
             return 48, 48, True, False
         if condition in ("long96", "min20"):
             return 96, 96, True, False
         if condition == "eos_raw" and model == "llada":
             return 48, 24, False, True
+        if condition == "eos_step48" and model == "llada":
+            return 48, 48, True, True
+        if condition == "eos_long96" and model == "llada":
+            return 96, 96, True, True
     if task == "bbq":
         if condition in ("step32", "explicit"):
             return 32, 32, True, False
@@ -36,6 +54,9 @@ def main():
     ap.add_argument("--output", type=Path, required=True)
     args = ap.parse_args()
     length, steps, chat, deprioritize_eos = config(args.task, args.condition, args.model)
+    truncate_eos = args.condition in ("baseline24_eos", "short12_eos",
+                                      "steps16_eos", "steps20_eos",
+                                      "step48_stop", "eos_step48_stop")
     blob = args.data.read_bytes()
     digest = hashlib.sha256(blob).hexdigest()
     rows = [json.loads(s) for s in blob.splitlines() if s]
@@ -49,7 +70,8 @@ def main():
             row = json.loads(line)
             if (row["model"] != args.model or row["task"] != args.task or
                     row["condition"] != args.condition or row["data_sha256"] != digest or
-                    row["new_tokens"] != length or row["steps"] != steps):
+                    row["new_tokens"] != length or row["steps"] != steps or
+                    row.get("truncate_eos", False) != truncate_eos):
                 raise ValueError("output belongs to another configuration")
             if row["id"] in completed:
                 raise ValueError("duplicate output ids")
@@ -82,11 +104,13 @@ def main():
             start = time.monotonic()
             answer, metadata = generator.generate(model_input, new_tokens=length, steps=steps,
                                                   chat=chat, return_metadata=True,
-                                                  deprioritize_eos=deprioritize_eos)
+                                                  deprioritize_eos=deprioritize_eos,
+                                                  truncate_eos=truncate_eos)
             result = {"id": row["id"], "model": args.model, "model_revision": generator.revision,
                       "task": args.task, "condition": args.condition, "data_sha256": digest,
                       "new_tokens": length, "steps": steps, "chat": chat,
                       "deprioritize_eos": deprioritize_eos, "prompt": row.get("prompt"),
+                      "truncate_eos": truncate_eos,
                       "domain": row.get("domain"), "category": row.get("category"),
                       "context_condition": row.get("context_condition"),
                       "question_polarity": row.get("question_polarity"), "label": row.get("label"),

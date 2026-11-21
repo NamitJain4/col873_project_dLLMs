@@ -1,0 +1,9 @@
+model	condition	reference	context	n	accuracy	reference_accuracy	accuracy_change	ci_low	ci_high	unknown_fraction
+dream	step32	baseline	ambig	660	0.518182	0.548485	-0.030303	-0.053030	-0.009091	0.518182
+dream	step32	baseline	disambig	660	0.975758	0.972727	0.003030	-0.003030	0.010606	0.003030
+dream	explicit	baseline	ambig	660	0.716667	0.548485	0.168182	0.136364	0.198485	0.716667
+dream	explicit	baseline	disambig	660	0.969697	0.972727	-0.003030	-0.012121	0.006061	0.007576
+dream	explicit	step32	ambig	660	0.716667	0.518182	0.198485	0.163636	0.230303	0.716667
+dream	explicit	step32	disambig	660	0.969697	0.975758	-0.006061	-0.015152	0.001515	0.007576
+qwen	explicit	baseline	ambig	660	0.950000	0.915152	0.034848	0.021212	0.050000	0.950000
+qwen	explicit	baseline	disambig	660	0.854545	0.877273	-0.022727	-0.039394	-0.007576	0.131818

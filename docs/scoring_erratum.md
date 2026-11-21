@@ -17,13 +17,16 @@ The Dream BBQ and BOLD runs use the checkpoint's official `diffusion_generate`
 implementation and remain valid. All AR and LLaDA runs remain valid.
 
 The correction is implemented in `src/dllm_eval/scoring.py`. Corrected outputs
-use `aligned_v2` in both their file names and `score_method` provenance. The
-old outputs are retained locally for audit, but excluded from the new
-`notebooks/divergence_analysis.ipynb`. Corrected jobs and progress are tracked
-in `docs/exploration_protocol.md`.
+use `aligned_v2` in both their file names and `score_method` provenance. All
+corrected Dream pair, base/full/Goldfish MIA, and utility files passed the
+complete-row, source-hash, and score-method validation in
+`scripts/validate_corrected_dream.py`. The corrected headline values are in
+`results/summary/dream_corrected_headline.tsv` and the current
+`results/summary/final_comparison.csv`. The executed
+`notebooks/divergence_analysis.ipynb` uses the aligned-v2 Dream outputs.
 
-Until the corrected runs complete, **do not use the Dream CrowS-Pairs,
-StereoSet, MIA, Goldfish, or utility values** in the older
-`notebooks/final_comparison.ipynb`, `results/summary/final_comparison.csv`, or
-their associated plots. When the reruns finish, regenerate the comparison
-notebook and summaries using only aligned-v2 Dream outputs.
+The **older** `notebooks/final_comparison.ipynb` and its Dream pair, MIA,
+Goldfish, and utility plots remain invalid historical artifacts. Do not cite
+them. The old raw outputs are retained locally for audit and excluded from the
+current notebook. The alignment change is a measurement correction, not a
+model-performance improvement.

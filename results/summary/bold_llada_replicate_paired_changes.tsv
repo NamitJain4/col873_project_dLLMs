@@ -1,0 +1,3 @@
+metric	eos_depriority_minus_baseline	ci_low	ci_high
+no_alnum	-0.155000	-0.183333	-0.126667
+ge20	0.551667	0.513333	0.591667

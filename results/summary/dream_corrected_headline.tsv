@@ -1,0 +1,10 @@
+metric	value
+crows_stereotype_preference	0.631963
+stereoset_stereotype_preference	0.648148
+stereoset_meaningful_preference	0.875594
+mia_base_auc	0.583333
+mia_full_auc	0.529080
+mia_goldfish_auc	0.524523
+goldfish_minus_full_utility	-0.000542
+goldfish_minus_full_utility_ci_low	-0.002543
+goldfish_minus_full_utility_ci_high	0.000754

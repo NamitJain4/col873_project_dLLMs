@@ -107,6 +107,32 @@ finish(fig,'bbq_evidence_vs_abstention')
 """)
 
 code("""
+# Decompose the authors' ambiguous BBQ bias score into guessing frequency and
+# stereotype direction among the model's non-unknown, mapped responses.
+bbq_scores=pd.read_csv(ROOT/'results/summary/bbq_full.tsv',sep='\\t')
+amb_scores=bbq_scores[(bbq_scores.category=='ALL')&
+                      (bbq_scores.condition=='ambig')].copy()
+amb_scores['model']=amb_scores.file.str.extract(r'bbq_full_(\\w+)\\.jsonl$')[0]
+amb_scores=amb_scores[amb_scores.model.isin(models)].set_index('model').loc[models]
+amb_scores['guess_fraction']=1-amb_scores.unknown_rate-amb_scores.invalid_rate
+amb_scores['target_given_guess']=(1+amb_scores.stereotype_preference)/2
+display(amb_scores[['accuracy','guess_fraction','target_given_guess','bias_score']].round(4))
+fig,ax=plt.subplots(figsize=(8.5,4.4))
+for model in models:
+    r=amb_scores.loc[model]
+    ax.scatter(r.guess_fraction,r.target_given_guess,s=115,color=colors[model])
+    offset={'llama':(8,-18),'llada':(8,7),'qwen':(8,4),'dream':(8,4)}[model]
+    ax.annotate(f"{names[model]}  (bias {r.bias_score:.3f})",
+                (r.guess_fraction,r.target_given_guess),xytext=offset,textcoords='offset points')
+ax.axhline(.5,color='black',ls='--',lw=.8)
+ax.set_xlim(0,.55);ax.set_ylim(.45,.9)
+ax.set_xlabel('Fraction of ambiguous questions answered with a person')
+ax.set_ylabel('Stereotype-target share among non-unknown answers')
+ax.grid(alpha=.2)
+finish(fig,'bbq_bias_decomposition')
+""")
+
+code("""
 cat=bbq.groupby(['model','condition','category'])['correct'].mean()
 categories=sorted(bbq.category.unique())
 pair_names=[('llada','llama','LLaDA − Llama 3'),('dream','qwen','Dream − Qwen2.5')]
@@ -204,7 +230,7 @@ md("""**Reading the BBQ plots.** Dream's low overall ambiguous score is spread a
 
 md("""## 2. BOLD: separate sentiment from generation coverage
 
-All sentiment plots use the same VADER lexicon. The word-count and empty-output plots use the model outputs themselves. Negative sentiment is a lexical proxy; it cannot establish that a continuation is socially biased. A score based on the nonempty subset can move simply because a different set of prompts produced text.""")
+All sentiment plots use the same VADER lexicon. The word-count and empty-output plots use the model outputs themselves. “No letter or digit” catches punctuation-only and invisible-character output missed by a whitespace check; it is a crude coverage diagnostic, not a semantic quality judgment. Negative sentiment is a lexical proxy; it cannot establish that a continuation is socially biased. A score based on the nonempty subset can move simply because a different set of prompts produced text.""")
 
 code("""
 bold_records=[]
@@ -214,12 +240,28 @@ for model in models:
             if r['prompt'].strip():
                 bold_records.append((r['id'],model,mode,r['domain'],
                                      f"{r['source_file']}:{r['source_row']}",
-                                     len(r['continuation'].split())))
-bold=pd.DataFrame(bold_records,columns=['id','model','mode','domain','source_cluster','words'])
+                                     len(r['continuation'].split()),
+                                     not any(ch.isalnum() for ch in r['continuation'])))
+bold=pd.DataFrame(bold_records,columns=['id','model','mode','domain','source_cluster','words','no_alnum'])
 bold['empty']=bold.words.eq(0)
 display(bold.groupby(['model','mode']).agg(n=('id','size'),empty=('empty','mean'),
-      median_words=('words','median'),short_le5=('words',lambda x:(x<=5).mean()),
+      no_alnum=('no_alnum','mean'),median_words=('words','median'),
+      short_le5=('words',lambda x:(x<=5).mean()),
       long_ge20=('words',lambda x:(x>=20).mean())).round(4))
+""")
+
+code("""
+coverage=bold.groupby(['model','mode'])[['empty','no_alnum']].mean().reset_index()
+fig,axes=plt.subplots(1,2,figsize=(10,3.4),sharey=True)
+for ax,mode in zip(axes,['raw','chat']):
+    sub=coverage[coverage['mode']==mode].set_index('model').loc[models]
+    x=np.arange(4);w=.35
+    ax.bar(x-w/2,sub['empty'],w,label='Empty after strip',color='#BBBBBB')
+    ax.bar(x+w/2,sub['no_alnum'],w,label='No letter or digit',color='#AA4499')
+    ax.set_xticks(x,[names[m] for m in models]);ax.set_ylim(0,.7)
+    ax.set_title(mode+' continuation coverage');ax.grid(axis='y',alpha=.2)
+axes[1].legend(frameon=False)
+finish(fig,'bold_lexical_coverage')
 """)
 
 code("""
@@ -328,6 +370,28 @@ finish(fig,'bold_sentiment_by_length')
 
 md("""**Reading the BOLD plots.** The same 23,674 valid prompts under raw and chat formats give a matched comparison. LLaDA's raw-prefix empty rate is far higher than its instructed-chat rate. Dream produces many more short and empty outputs in chat, including across multiple BOLD domains. The EOS and larger-budget probes below test a generation mechanism, while the length-conditioned sentiment plot shows why the headline negative rate is hard to interpret by itself.""")
 
+code("""
+# Conditional illustrations, chosen by a fixed hash within each domain.
+# They show what a short Dream continuation can look like; they are not a random
+# sample and must never be used to estimate a rate.
+import hashlib
+dream_text={r['id']:r for r in read_jsonl(ROOT/'results/bold_chat_full_dream.jsonl')
+            if r['prompt'].strip()}
+llada_text={r['id']:r for r in read_jsonl(ROOT/'results/bold_chat_full_llada.jsonl')
+            if r['prompt'].strip()}
+examples=[]
+for domain in sorted({r['domain'] for r in dream_text.values()}):
+    candidates=[i for i,r in dream_text.items() if r['domain']==domain and
+                1<=len(r['continuation'].split())<=5 and
+                len(llada_text[i]['continuation'].split())>=20]
+    chosen=min(candidates,key=lambda i:hashlib.sha256(('qual-v1:'+i).encode()).digest())
+    examples.append((domain,dream_text[chosen]['prompt'][:100],
+                     dream_text[chosen]['continuation'][:120],
+                     llada_text[chosen]['continuation'][:120]))
+display(pd.DataFrame(examples,columns=['domain','prompt excerpt','Dream excerpt','LLaDA excerpt']))
+del dream_text,llada_text
+""")
+
 md("""## 3. Paired sentence scores and membership: validity gate
 
 Dream is included only if complete, aligned-v2 outputs exist. The unshifted legacy Dream values are never used in these figures. The remaining model results are the original completed runs. Pair scores are our project-specific masked-reconstruction/AR preferences, not official leaderboard scores.""")
@@ -363,6 +427,18 @@ finish(fig,'pair_preference_valid_only')
 """)
 
 code("""
+stereo=pairs[pairs.task=='stereoset'].set_index('model')
+ms=[m for m in models if m in stereo.index]
+fig,ax=plt.subplots(figsize=(8.5,3.6))
+ax.bar([names[m] for m in ms],stereo.loc[ms,'meaningful'],
+       color=[colors[m] for m in ms])
+ax.set_ylim(0,1);ax.set_ylabel('Meaningful option over unrelated')
+ax.set_title('StereoSet language-meaning check')
+ax.grid(axis='y',alpha=.2)
+finish(fig,'stereoset_meaningful_valid_only')
+""")
+
+code("""
 mia_rows=[]
 for model in models:
     paths={mode:(ROOT/f'results/exploration/mia_{mode}_dream_aligned_v2.jsonl' if model=='dream'
@@ -386,9 +462,25 @@ ax.set_ylim(0,1);ax.set_ylabel('MIA AUROC');ax.legend(frameon=False);ax.grid(axi
 finish(fig,'mia_valid_only')
 """)
 
+code("""
+mitigation_path=ROOT/'results/summary/dream_mitigation_aligned_v2.tsv'
+if mitigation_path.exists():
+    mitigation=pd.read_csv(mitigation_path,sep='\\t')
+    display(mitigation)
+    sub=mitigation[mitigation.repetition_group.astype(str).isin(['1','4','16'])]
+    fig,ax=plt.subplots(figsize=(7.5,3.5));x=np.arange(len(sub));w=.35
+    ax.bar(x-w/2,sub.full_auc,w,label='Full',color='#EE6677')
+    ax.bar(x+w/2,sub.goldfish_auc,w,label='Goldfish',color='#AA4499')
+    ax.axhline(.5,color='black',ls='--',lw=.8)
+    ax.set_xticks(x,sub.repetition_group.astype(str));ax.set_xlabel('Canary copies in training')
+    ax.set_ylabel('Dream corrected MIA AUROC');ax.set_ylim(0,1)
+    ax.legend(frameon=False);ax.grid(axis='y',alpha=.2)
+    finish(fig,'dream_corrected_mia_by_repetition')
+""")
+
 md("""## 4. Interventions: registered before looking at new results
 
-The samples are fixed by a hash of each source ID: 60 BOLD prompts (12 per domain) and 132 BBQ items (three per category × context × polarity). All conditions use the same items. **BOLD:** compare old chat 48-token/24-step outputs with 48/48 steps, 96/96 length+steps, and 96/96 with an explicit minimum-length instruction. For LLaDA raw prefix, test official-paper-inspired EOS-confidence deprioritization. **BBQ:** compare old 32/16 with 32/32 diffusion steps, then an explicit evidence/abstention instruction at 32/32. AR models receive the same explicit instruction as controls.
+The samples are fixed by a hash of each source ID: 60 BOLD prompts (12 per domain) and 132 BBQ items (three per category × context × polarity). All conditions use the same items. **BOLD:** compare old chat 48-token/24-step outputs with 48/12, 48/48, 96/96 length+steps, and 96/96 with an explicit minimum-length instruction. The 48/12 probe was added after the 48/48 outputs showed shorter continuations; it is exploratory follow-up. For LLaDA, test official-paper-inspired EOS-confidence deprioritization in raw prefix and at both chat step budgets. **BBQ:** compare old 32/16 with 32/32 diffusion steps, then an explicit evidence/abstention instruction at 32/32. AR models receive the same explicit instruction as controls.
 
 These are exploratory subset interventions. A result on 60 or 132 items is evidence about these prompts, not a replacement for the complete baseline. Compare conditions *within* a model and show denominators; do not attribute a mixed length+step change to either component alone.""")
 
@@ -398,19 +490,24 @@ probe_bold=[]
 for model in ['llada','dream']:
     baseline=bold[(bold.model==model)&(bold['mode']=='chat')&bold.id.isin(bold_probe_ids)]
     probe_bold.append((model,'baseline 48/24',len(baseline),baseline['empty'].mean(),
-                       baseline.words.median(),(baseline.words>=20).mean(),np.nan))
+                       baseline.words.median(),(baseline.words>=20).mean(),np.nan,np.nan))
     if model=='llada':
         raw=bold[(bold.model==model)&(bold['mode']=='raw')&bold.id.isin(bold_probe_ids)]
         probe_bold.append((model,'raw baseline 48/24',len(raw),raw['empty'].mean(),
-                           raw.words.median(),(raw.words>=20).mean(),np.nan))
-    for condition in ['step48','long96','min20']+(['eos_raw'] if model=='llada' else []):
+                           raw.words.median(),(raw.words>=20).mean(),np.nan,np.nan))
+    for condition in ['short12','step48','long96','min20']+(
+            ['eos_raw','eos_step48','eos_long96'] if model=='llada' else []):
         path=ROOT/f'results/exploration/bold_{condition}_{model}.jsonl'
         if not complete(path,60): continue
         rows=list(read_jsonl(path)); lengths=np.array([len(r['output'].split()) for r in rows])
+        eos_first=[r['raw_generation']['eos_positions'][0] for r in rows
+                   if r['raw_generation']['eos_positions']]
         probe_bold.append((model,condition,60,np.mean(lengths==0),np.median(lengths),
                            np.mean(lengths>=20),np.mean([r['raw_generation']['first_token_is_eos']
-                                                         for r in rows])))
-bold_interventions=pd.DataFrame(probe_bold,columns=['model','condition','n','empty','median_words','ge20','first_eos'])
+                                                         for r in rows]),
+                           np.median(eos_first) if eos_first else np.nan))
+bold_interventions=pd.DataFrame(probe_bold,columns=['model','condition','n','empty',
+    'median_words','ge20','first_eos','median_first_eos_position'])
 display(bold_interventions)
 fig,axes=plt.subplots(1,2,figsize=(10,3.8))
 for ax,model in zip(axes,['llada','dream']):
@@ -421,6 +518,174 @@ for ax,model in zip(axes,['llada','dream']):
     ax.set_title(names[model]+' chat empty rate');ax.tick_params(axis='x',rotation=30)
     ax.grid(axis='y',alpha=.2)
 finish(fig,'bold_generation_interventions')
+""")
+
+code("""
+fig,ax=plt.subplots(figsize=(8,4))
+for r in bold_interventions.itertuples():
+    if not np.isfinite(r.median_first_eos_position): continue
+    ax.scatter(r.median_first_eos_position,r.median_words,
+               s=90,color=colors[r.model])
+    ax.annotate(f'{names[r.model]} {r.condition}',
+                (r.median_first_eos_position,r.median_words),
+                xytext=(5,4),textcoords='offset points',fontsize=8)
+ax.set_xlabel('Median position of first EOS token among outputs containing EOS')
+ax.set_ylabel('Median visible output words')
+ax.grid(alpha=.2)
+finish(fig,'bold_eos_position_vs_length')
+""")
+
+code("""
+# Paired candidate bootstrap intervals for the small BOLD probe; exploratory.
+bold_changes=[]
+for model in ['llada','dream']:
+    baseline=bold[(bold.model==model)&(bold['mode']=='chat')&bold.id.isin(bold_probe_ids)].set_index('id')
+    for condition in ['short12','step48','long96','min20']+(
+            ['eos_step48','eos_long96'] if model=='llada' else []):
+        path=ROOT/f'results/exploration/bold_{condition}_{model}.jsonl'
+        if not complete(path,60): continue
+        probe={r['id']:r for r in read_jsonl(path)}
+        ids=sorted(baseline.index)
+        changes=np.array([int(not any(ch.isalnum() for ch in probe[i]['output']))-
+                          int(baseline.loc[i,'no_alnum']) for i in ids])
+        rng=np.random.default_rng(42)
+        draw=np.mean(changes[rng.integers(60,size=(2000,60))],axis=1)
+        lo,hi=np.quantile(draw,[.025,.975])
+        bold_changes.append((model,condition,changes.mean(),lo,hi))
+bold_change=pd.DataFrame(bold_changes,columns=['model','condition','change_no_alnum','ci_low','ci_high'])
+display(bold_change)
+""")
+
+md("""### Nonoverlapping BOLD replication with stop-token decoding
+
+The 60-prompt short-step probe suggested that Dream writes longer continuations with 12 instead of 24 diffusion steps. The original full BOLD adapter removed special tokens during decoding but did not cut off text at the **first EOS**; some post-EOS text could therefore remain visible. A separate 600-prompt sample (120 per domain, with no overlap with the first 60) reruns **both** 24-step and 12-step Dream generation with first-EOS truncation. This paired comparison holds model, prompt, 48-token budget, and decoding policy fixed. The baseline full BOLD figures above describe the original fixed-span decoder; treat them separately from this corrected-stop experiment.""")
+
+code("""
+replicate_bold_path=ROOT/'results/summary/bold_replicate_600.tsv'
+if replicate_bold_path.exists():
+    bold_rep=pd.read_csv(replicate_bold_path,sep='\\t')
+    bold_rep_change=pd.read_csv(ROOT/'results/summary/bold_replicate_paired_changes.tsv',sep='\\t')
+    display(bold_rep.round(4),bold_rep_change.round(4))
+    domains=sorted(d for d in bold_rep.domain.unique() if d!='ALL')
+    fig,axes=plt.subplots(1,2,figsize=(11,3.8),sharey=True)
+    for ax,metric,title in zip(axes,['no_alnum_fraction','fraction_ge20'],
+                               ['No lexical content','At least 20 words']):
+        x=np.arange(len(domains));w=.36
+        for j,condition in enumerate(['baseline24_eos','short12_eos']):
+            values=bold_rep[(bold_rep.domain.isin(domains))&
+                            (bold_rep.condition==condition)].set_index('domain').loc[domains,metric]
+            ax.bar(x+(j-.5)*w,values,w,label='24 steps' if j==0 else '12 steps',
+                   color=['#4477AA','#EE6677'][j])
+        ax.set_xticks(x,[d.replace('_',' ') for d in domains],rotation=25)
+        ax.set_ylim(0,1);ax.set_title(title);ax.grid(axis='y',alpha=.2)
+    axes[1].legend(frameon=False)
+    finish(fig,'bold_replication_domains')
+    fig,ax=plt.subplots(figsize=(8.5,3.5))
+    labels={'empty':'Empty','no_alnum':'No lexical content',
+            'ge20':'At least 20 words','first_eos':'First token is EOS'}
+    for j,r in enumerate(bold_rep_change.itertuples()):
+        x=r.short12_minus_baseline24
+        ax.errorbar(x,j,xerr=[[x-r.ci_low],[r.ci_high-x]],fmt='o',capsize=3,
+                    color='#EE6677')
+    ax.axvline(0,color='black',lw=.8);ax.set_yticks(range(len(bold_rep_change)),
+                                                    [labels[x] for x in bold_rep_change.metric])
+    ax.set_xlabel('12-step minus 24-step fraction (95% domain-stratified bootstrap CI)')
+    ax.grid(axis='x',alpha=.2)
+    finish(fig,'bold_replication_paired_changes')
+else:
+    print('First-EOS BOLD replication pending.')
+""")
+
+md("""### LLaDA EOS-confidence replication on the same 600 prompts
+
+The LLaDA pilot at 48/48 steps showed that assigning EOS low fill priority moved its first occurrence to the final token slot and restored much longer continuations. We rerun 48/48 with and without that single selection change on the 600 new BOLD prompts, using first-EOS truncation in both conditions. This measures a **coverage** effect. It does not show that the extra text is true, coherent, or less biased; the examples need separate review for those claims.""")
+
+code("""
+llada_rep_path=ROOT/'results/summary/bold_llada_replicate_600.tsv'
+if llada_rep_path.exists():
+    llada_rep=pd.read_csv(llada_rep_path,sep='\\t')
+    llada_rep_change=pd.read_csv(ROOT/'results/summary/bold_llada_replicate_paired_changes.tsv',sep='\\t')
+    display(llada_rep.round(4),llada_rep_change.round(4))
+    domains=sorted(d for d in llada_rep.domain.unique() if d!='ALL')
+    fig,axes=plt.subplots(1,2,figsize=(11,3.8),sharey=True)
+    for ax,metric,title in zip(axes,['no_alnum_fraction','fraction_ge20'],
+                               ['No lexical content','At least 20 words']):
+        x=np.arange(len(domains));w=.36
+        for j,condition in enumerate(['step48_stop','eos_step48_stop']):
+            values=llada_rep[(llada_rep.domain.isin(domains))&
+                             (llada_rep.condition==condition)].set_index('domain').loc[domains,metric]
+            ax.bar(x+(j-.5)*w,values,w,label='Original selection' if j==0 else 'EOS last',
+                   color=['#4477AA','#EE6677'][j])
+        ax.set_xticks(x,[d.replace('_',' ') for d in domains],rotation=25)
+        ax.set_ylim(0,1);ax.set_title(title);ax.grid(axis='y',alpha=.2)
+    axes[1].legend(frameon=False)
+    finish(fig,'bold_llada_eos_replication')
+else:
+    print('LLaDA first-EOS replication pending.')
+""")
+
+md("""### Coverage versus repetition
+
+Longer output is not automatically a better continuation. We measure two narrow diagnostics on the 600-item replications: whether an output starts by copying the entire prompt, and the fraction of repeated three-word sequences among outputs of at least 20 words. A sequence with at least 20% repeated trigrams is flagged as heavily repetitive. These checks catch obvious failure modes, but they cannot measure factuality, fluency, or harmful stereotypes. The 24-step Dream condition has no 20-word outputs, so its long-output repetition rate is undefined. The 16- and 20-step Dream runs were added after inspecting the 12-step coverage gain and repetition; this is a post hoc sweep.""")
+
+code("""
+quality_path=ROOT/'results/summary/generation_quality_600.tsv'
+if quality_path.exists():
+    quality=pd.read_csv(quality_path,sep='\\t')
+    display(quality.round(4))
+    dream_steps={'short12_eos':12,'steps16_eos':16,'steps20_eos':20,'baseline24_eos':24}
+    dream_q=quality[quality.model=='dream'].copy()
+    dream_q['steps']=dream_q.condition.map(dream_steps)
+    dream_q=dream_q.sort_values('steps')
+    dream_cov=bold_rep[(bold_rep.domain=='ALL')&
+                       (bold_rep.condition.isin(dream_steps))].copy()
+    dream_cov['steps']=dream_cov.condition.map(dream_steps)
+    dream_cov=dream_cov.sort_values('steps')
+    fig,axes=plt.subplots(1,2,figsize=(10,3.7))
+    axes[0].plot(dream_cov.steps,dream_cov.fraction_ge20,'o-',color=colors['dream'])
+    axes[0].set_ylabel('Fraction with at least 20 words')
+    axes[0].set_ylim(0,1);axes[0].grid(alpha=.2)
+    axes[1].plot(dream_q.steps,dream_q.heavy_repetition_fraction_ge20,'o-',
+                 color=colors['dream'])
+    for r in dream_q.itertuples():
+        if np.isfinite(r.heavy_repetition_fraction_ge20):
+            axes[1].annotate(f'n={r.n_ge20_words}',
+                             (r.steps,r.heavy_repetition_fraction_ge20),
+                             xytext=(4,4),textcoords='offset points',fontsize=8)
+    axes[1].set_ylabel('Heavily repetitive among 20+ word outputs')
+    axes[1].set_ylim(0,1);axes[1].grid(alpha=.2)
+    for ax in axes: ax.set_xlabel('Dream diffusion steps (48-token budget)')
+    finish(fig,'bold_dream_step_tradeoff')
+    fig,ax=plt.subplots(figsize=(8,3.5))
+    subset=quality[(quality.model=='llada')&
+                   (quality.condition.isin(['step48_stop','eos_step48_stop']))]
+    ax.bar(['Original selection','EOS depriority'],
+           subset.set_index('condition').loc[['step48_stop','eos_step48_stop'],
+                                             'prompt_recopy_fraction'],
+           color=['#4477AA','#EE6677'])
+    ax.set_ylabel('Fraction starting by copying the full prompt')
+    ax.set_ylim(0,1);ax.grid(axis='y',alpha=.2)
+    finish(fig,'bold_llada_prompt_recopy')
+else:
+    print('Generation quality and intermediate-step sweep pending.')
+""")
+
+code("""
+# Illustrative examples chosen after inspecting outputs; not frequency evidence.
+examples=[]
+for model,item_id,conditions in [
+    ('dream','political_ideology_prompt_wiki.json:162:8',
+     ['baseline24_eos','short12_eos','steps16_eos','steps20_eos']),
+    ('llada','gender_prompt_wiki.json:1013:0',
+     ['step48_stop','eos_step48_stop'])]:
+    for condition in conditions:
+        path=ROOT/f'results/exploration/bold_replicate_{condition}_{model}.jsonl'
+        if not path.exists():continue
+        hit=[r for r in read_jsonl(path) if r['id']==item_id]
+        if len(hit)==1:
+            r=hit[0]
+            examples.append((model,condition,r['prompt'],r['output'][:260]))
+display(pd.DataFrame(examples,columns=['model','condition','prompt','continuation excerpt']))
 """)
 
 code("""
@@ -452,6 +717,57 @@ for ax,cond in zip(axes,['ambig','disambig']):
     ax.grid(alpha=.2)
 axes[1].legend(frameon=False,bbox_to_anchor=(1.02,1),loc='upper left')
 finish(fig,'bbq_prompt_interventions')
+""")
+
+code("""
+bbq_changes=[]
+for model in models:
+    baseline=bbq[(bbq.model==model)&bbq.id.isin(bbq_probe_ids)].set_index('id')
+    for condition in (['step32','explicit'] if model in ['llada','dream'] else ['explicit']):
+        path=ROOT/f'results/exploration/bbq_{condition}_{model}.jsonl'
+        if not complete(path,132): continue
+        probe={r['id']:r for r in read_jsonl(path)}
+        for context in ['ambig','disambig']:
+            ids=sorted(baseline[baseline.condition==context].index)
+            changes=np.array([int(probe[i]['prediction']==probe[i]['label'])-
+                              int(baseline.loc[i,'correct']) for i in ids])
+            rng=np.random.default_rng(42)
+            draw=np.mean(changes[rng.integers(len(ids),size=(2000,len(ids)))],axis=1)
+            lo,hi=np.quantile(draw,[.025,.975])
+            bbq_changes.append((model,condition,context,len(ids),changes.mean(),lo,hi))
+bbq_change=pd.DataFrame(bbq_changes,columns=['model','condition','context','n',
+                                              'accuracy_change','ci_low','ci_high'])
+display(bbq_change)
+""")
+
+md("""### Nonoverlapping BBQ replication
+
+The initial 132-item prompt result was inspected during exploration. A second deterministic sample of 1,320 **different** BBQ items (30 per category × context × polarity stratum) tests whether it persists. Dream receives both 32/32 steps with the original prompt and 32/32 with the explicit evidence rule, so their direct contrast isolates the prompt change at a fixed decoding budget. Qwen receives the same explicit rule as an AR control. Baseline predictions come from the completed full benchmark, without new inference. Intervals resample items within each of the 22 category × polarity strata per context. They quantify sampling variation on this fixed benchmark extract; they do not remove checkpoint or prompt-selection uncertainty.""")
+
+code("""
+replicate_path=ROOT/'results/summary/bbq_replicate_1320.tsv'
+if replicate_path.exists():
+    replicate=pd.read_csv(replicate_path,sep='\\t')
+    display(replicate.round(4))
+    labels={('dream','step32','baseline'):'Dream: more steps',
+            ('dream','explicit','baseline'):'Dream: steps + evidence rule',
+            ('dream','explicit','step32'):'Dream: evidence rule at 32 steps',
+            ('qwen','explicit','baseline'):'Qwen: evidence rule'}
+    fig,axes=plt.subplots(1,2,figsize=(11.5,4),sharey=True)
+    for ax,context in zip(axes,['ambig','disambig']):
+        sub=replicate[replicate.context==context]
+        for y,(key,label) in enumerate(labels.items()):
+            r=sub[(sub.model==key[0])&(sub.condition==key[1])&
+                  (sub.reference==key[2])].iloc[0]
+            x=r.accuracy_change
+            ax.errorbar(x,y,xerr=[[x-r.ci_low],[r.ci_high-x]],fmt='o',
+                        color=colors[key[0]],capsize=3)
+        ax.axvline(0,color='black',lw=.8);ax.grid(axis='x',alpha=.2)
+        ax.set_title(context);ax.set_xlabel('Paired accuracy change (95% stratified bootstrap CI)')
+        ax.set_yticks(range(len(labels)),list(labels.values()))
+    finish(fig,'bbq_replication')
+else:
+    print('Replication job pending; this figure will appear after validation.')
 """)
 
 md("""## Interpretation and decision rule

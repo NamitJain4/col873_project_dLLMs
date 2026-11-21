@@ -3,9 +3,16 @@
 **Scoring correction (2026-11-21):** Dream's masked-token head predicts each
 token from the previous logit position. The original Dream CrowS-Pairs,
 StereoSet, MIA, Goldfish, and utility numbers in the older final comparison
-are invalid pending aligned-v2 reruns. Dream BBQ and BOLD generation is valid.
+are invalid. Their aligned-v2 reruns are complete and used in the current
+notebook and summary. The original BOLD generation used a fixed-span decoder
+that could show text after EOS; the new 600-prompt paired replications use
+first-EOS truncation for both conditions.
 Read [the correction](docs/scoring_erratum.md) and the new
 [divergence analysis](notebooks/divergence_analysis.ipynb) before using figures.
+The current [exploration protocol](docs/exploration_protocol.md) tests
+abstention, generation coverage/EOS, and correct masked-token scoring.
+The [research memo](docs/findings.md) summarizes the completed results and
+their limits for teammates.
 
 Course project for COL873. The assigned brief is pages 8–10 of [PROJECTS-Trustworthy_LLMs.pdf](PROJECTS-Trustworthy_LLMs.pdf). The full baseline compares four assigned instruction models on BBQ, BOLD, CrowS-Pairs, and StereoSet. See [docs/project_plan.md](docs/project_plan.md) for the research plan and [docs/sources.md](docs/sources.md) for the source audit.
 
@@ -17,7 +24,8 @@ Course project for COL873. The assigned brief is pages 8–10 of [PROJECTS-Trust
 - `results/`: raw JSONL predictions stay local; compact summaries and final PNG figures are committed
 - `logs/`: PBS logs (ignored by Git)
 - `docs/`: experiment protocol and literature notes
-- `notebooks/final_comparison.ipynb`: executed analysis with all full plots
+- `notebooks/divergence_analysis.ipynb`: current executed analysis and plots
+- `notebooks/final_comparison.ipynb`: historical analysis with invalid Dream score plots
 
 ## First run
 
@@ -67,8 +75,8 @@ The controlled synthetic canary fine-tuning, base and tuned MIA, Goldfish-style 
 
 ## Shared results
 
-The [executed divergence notebook](notebooks/divergence_analysis.ipynb) contains the current validity-gated plots and focused analysis. The older [full comparison notebook](notebooks/final_comparison.ipynb) is retained as a historical artifact; its Dream pair, MIA, Goldfish, and utility plots are invalid until corrected reruns finish. The [consolidated comparison](results/summary/final_comparison.csv) leaves those invalid Dream values blank. See [the erratum](docs/scoring_erratum.md) before using old figures or detailed TSVs. The valid [BBQ paired comparison](results/figures/bbq_paired_accuracy.png) and [BOLD sentiment and coverage](results/figures/bold_domain_sentiment_coverage.png) remain available.
+The [executed divergence notebook](notebooks/divergence_analysis.ipynb) contains the current analysis and 24 figures, including full BBQ comparisons, BOLD coverage and sentiment diagnostics, corrected Dream pair/MIA results, and nonoverlapping BBQ and BOLD replications. The [consolidated comparison](results/summary/final_comparison.csv) now includes the corrected Dream values. The older [full comparison notebook](notebooks/final_comparison.ipynb) is retained as a historical artifact; its Dream pair, MIA, Goldfish, and utility plots are invalid. See [the erratum](docs/scoring_erratum.md) before using old figures or detailed TSVs.
 
 Raw benchmark extracts, per-example outputs, adapters, and PBS logs remain local because they are large or contain generated text. The pinned data sources and input hashes in `docs/` support reruns. Teammates need their own Hugging Face access to the gated Meta Llama checkpoint to reproduce it.
 
-Regenerate and execute the current notebook with `../col873_ass2/.venv-gpu/bin/python scripts/render_divergence_notebook.py`. The analysis environment is pinned in `requirements-analysis.txt`. The legacy final-comparison renderer is disabled until all corrected Dream results are incorporated.
+Regenerate and execute the current notebook with `../col873_ass2/.venv-gpu/bin/python scripts/render_divergence_notebook.py`. The analysis environment is pinned in `requirements-analysis.txt`. The legacy final-comparison renderer remains disabled to prevent reuse of its invalid Dream plots.

@@ -11,6 +11,13 @@ MODELS = {
 }
 
 
+def visible_token_ids(generated_ids, eos_id, truncate_eos):
+    """Return generated IDs before the first EOS when stop-token decoding is requested."""
+    if truncate_eos and eos_id in generated_ids:
+        return generated_ids[:generated_ids.index(eos_id)]
+    return generated_ids
+
+
 class Generator:
     def __init__(self, name):
         if name not in MODELS:
@@ -27,7 +34,8 @@ class Generator:
                                          torch_dtype=dtype, low_cpu_mem_usage=True).to("cuda").eval()
 
     def generate(self, prompt, new_tokens=32, steps=16, chat=True,
-                 return_metadata=False, deprioritize_eos=False):
+                 return_metadata=False, deprioritize_eos=False,
+                 truncate_eos=False):
         if deprioritize_eos and self.kind != "llada":
             raise ValueError("EOS confidence intervention is only implemented for LLaDA")
         tokenizer = self.tokenizer
@@ -52,15 +60,15 @@ class Generator:
                 output = self._llada_generate(inputs, new_tokens, min(steps, new_tokens),
                                               deprioritize_eos=deprioritize_eos)
         generated_ids = output[0, inputs.shape[1]:].tolist()
-        decoded = tokenizer.decode(generated_ids, skip_special_tokens=True)
-        if tokenizer.eos_token and tokenizer.eos_token in decoded:
-            decoded = decoded.split(tokenizer.eos_token, 1)[0]
+        eos_id = tokenizer.eos_token_id
+        visible_ids = visible_token_ids(generated_ids, eos_id, truncate_eos)
+        decoded = tokenizer.decode(visible_ids, skip_special_tokens=True)
         cleaned = decoded.strip()
         if return_metadata:
-            eos_id = tokenizer.eos_token_id
             eos_positions = [i for i, value in enumerate(generated_ids) if value == eos_id]
             return cleaned, {"raw_token_count": len(generated_ids),
                              "eos_positions": eos_positions,
+                             "truncate_eos": truncate_eos,
                              "first_token_is_eos": bool(generated_ids and generated_ids[0] == eos_id),
                              "non_special_token_count": sum(value not in tokenizer.all_special_ids
                                                             for value in generated_ids)}
@@ -76,11 +84,17 @@ class Generator:
         for step in range(steps):
             mask = x == mask_id
             logits = self.model(x).logits[:, -length:, :]
+            # A mask is a placeholder, never a completed output token. Under
+            # EOS depriority the model can otherwise choose it and leave a slot
+            # unfilled even after the final diffusion step.
+            logits[:, :, mask_id] = -float("inf")
             probabilities = logits.softmax(dim=-1)
             confidence, predicted = probabilities.max(dim=-1)
-            confidence = confidence.masked_fill(~mask[:, -length:], -float("inf"))
             if deprioritize_eos:
                 confidence = confidence.masked_fill(predicted == self.tokenizer.eos_token_id, 0.0)
+            # Keep filled positions excluded even when their current prediction
+            # is EOS. Otherwise the EOS adjustment revives their -inf scores.
+            confidence = confidence.masked_fill(~mask[:, -length:], -float("inf"))
             count = base + (step < rem)
             chosen = confidence.topk(count, dim=1).indices + prompt.shape[1]
             x.scatter_(1, chosen, predicted.gather(1, chosen - prompt.shape[1]))

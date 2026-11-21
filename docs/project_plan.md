@@ -1,4 +1,13 @@
-# Project protocol and next experiments
+# Project direction and next experiments
+
+**Current working direction (2026-11-21):** explain why LLaDA and Dream
+diverge by separating evidence-based abstention, generation coverage/EOS, and
+masked-token score alignment. The first complete-baseline analysis, corrected
+Dream reruns, exploratory subset interventions, and a nonoverlapping BBQ
+replication are in
+[`docs/exploration_protocol.md`](exploration_protocol.md). The earlier
+Goldfish-transfer hypothesis below remains a possible follow-up after the
+Dream scoring correction is complete.
 
 ## Assigned question
 
@@ -20,12 +29,26 @@ Enron has real personal information. Prefer synthetic email-shaped records for t
 
 Vary canary duplication and apply exact deduplication. Train baseline and Goldfish-style token-loss omission variants with matched optimizer steps and token budgets. For diffusion, define the dropped-token mask *in addition to* the stochastic denoising mask; otherwise the denoising mask alone changes the meaning of the intervention. Compare privacy gain against held-out utility loss and show per-seed variation. DP-SGD is a stretch goal requiring a correct accountant and privacy unit definition.
 
-## Highest-value hypothesis
+## Alternative follow-up: mask-aware Goldfish transfer
 
 The strongest project direction is a **mask-aware Goldfish transfer study**: does withholding loss on a stable random subset of target positions suppress canary extraction in denoising models as it does in AR models? Test whether the effect changes with canary repetition, denoising mask rate, and diffusion sampling steps. Measure both generated canary recovery and chosen-mask reconstruction/MIA. If generation leakage drops while reconstruction-based membership remains high, the mitigation is hiding an output pathway rather than removing the information. This is a hypothesis, informed by [Goldfish loss](https://arxiv.org/pdf/2406.10209), [diffusion sampling effects](https://arxiv.org/abs/2603.02333), and [loss masking mechanism analysis](https://aclanthology.org/2026.privatenlp-main.5/); none of those sources establishes the proposed AR versus dLLM transfer result.
 
-## Pilot observation to test at full scale
+## Completed full baseline and prompt test
 
-In the 44-item polarity-balanced BBQ pilot, ambiguous-question accuracy was 20/22 for LLaDA versus 14/22 for exact Llama 3, but 15/22 for Dream versus 20/22 for Qwen. This opposite pair direction is a reason to test an architecture-by-model interaction rather than claim that diffusion alone improves bias handling. Each category has only two ambiguous items, so the pilot does not support a category or architecture conclusion. The full 58,492-item run is underway; use matched item-level comparisons and bootstrap intervals after it passes validation.
+The complete 58,492-item BBQ baseline has been run for all four assigned
+models. Dream performs much worse than Qwen on ambiguous questions (56.43%
+versus 94.78%) but better on disambiguated questions (97.49% versus 89.10%).
+LLaDA is more accurate than Llama 3 on both splits. The working mechanism
+question is therefore how much of the Dream gap reflects handling missing
+evidence, and how generation settings change output coverage. The 132-item
+prompt test found a Dream ambiguous gain from 39/66 to 48/66; an independent
+1,320-item replication found a +19.85-point ambiguous gain for the explicit
+evidence rule at a fixed 32-step budget, while disambiguated accuracy changed
+by −0.61 points. Separate 600-prompt BOLD replications found that Dream's
+12-step decoding and LLaDA's EOS-confidence depriority both substantially
+increase output coverage. Neither establishes better factuality or lower
+bias; the current quality sweep tests repetition and prompt copying.
+See the [executed divergence notebook](../notebooks/divergence_analysis.ipynb)
+for the plots, item-level analysis, and validity conditions.
 
 The course brief prohibits using generative AI to write the final report. These notes are for experiment planning; group members must write the report themselves.

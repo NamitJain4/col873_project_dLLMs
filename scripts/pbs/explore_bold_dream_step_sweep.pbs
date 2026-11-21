@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+#PBS -N dllm_dream_step_sweep
+#PBS -P mausam.inlp.pragya.spons
+#PBS -q standard
+#PBS -l select=1:ncpus=4:ngpus=1:mem=40gb
+#PBS -l walltime=02:00:00
+#PBS -j oe
+#PBS -o logs/
+
+set -euo pipefail
+umask 077
+cd "${PBS_O_WORKDIR:?Submit from repository root}"
+test -s data/processed/bold_replicate_600.jsonl
+mkdir -p logs results/exploration
+export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 TOKENIZERS_PARALLELISM=false PYTHONUNBUFFERED=1 OMP_NUM_THREADS=4
+PYTHON="${PROJECT_PYTHON:-$PBS_O_WORKDIR/../col873_ass2/.venv-gpu/bin/python}"
+for condition in steps16_eos steps20_eos; do
+  "$PYTHON" scripts/eval_generation_probe.py --task bold --model dream --condition "$condition" \
+    --data data/processed/bold_replicate_600.jsonl \
+    --output "results/exploration/bold_replicate_${condition}_dream.jsonl"
+done

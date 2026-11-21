@@ -3,7 +3,7 @@
 #PBS -P mausam.inlp.pragya.spons
 #PBS -q standard
 #PBS -l select=1:ncpus=4:ngpus=1:mem=40gb
-#PBS -l walltime=24:00:00
+#PBS -l walltime=02:00:00
 #PBS -j oe
 #PBS -o logs/
 

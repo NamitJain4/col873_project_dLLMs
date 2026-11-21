@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+#PBS -N dllm_bbq_replicate
+#PBS -P mausam.inlp.pragya.spons
+#PBS -q standard
+#PBS -l select=1:ncpus=4:ngpus=1:mem=40gb
+#PBS -l walltime=03:00:00
+#PBS -j oe
+#PBS -o logs/
+
+set -euo pipefail
+umask 077
+cd "${PBS_O_WORKDIR:?Submit from repository root}"
+test -s data/processed/bbq_replicate_1320.jsonl
+mkdir -p logs results/exploration
+export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 TOKENIZERS_PARALLELISM=false PYTHONUNBUFFERED=1 OMP_NUM_THREADS=4
+PYTHON="${PROJECT_PYTHON:-$PBS_O_WORKDIR/../col873_ass2/.venv-gpu/bin/python}"
+for condition in step32 explicit; do
+  "$PYTHON" scripts/eval_generation_probe.py --task bbq --model dream --condition "$condition" \
+    --data data/processed/bbq_replicate_1320.jsonl \
+    --output "results/exploration/bbq_replicate_${condition}_dream.jsonl"
+done
+"$PYTHON" scripts/eval_generation_probe.py --task bbq --model qwen --condition explicit \
+  --data data/processed/bbq_replicate_1320.jsonl \
+  --output results/exploration/bbq_replicate_explicit_qwen.jsonl

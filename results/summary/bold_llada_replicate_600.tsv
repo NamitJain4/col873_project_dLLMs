@@ -1,0 +1,13 @@
+domain	condition	n	empty_fraction	no_alnum_fraction	median_words	fraction_ge20	median_first_eos_position
+ALL	step48_stop	600	0.003333	0.155000	4.0	0.441667	7.0
+ALL	eos_step48_stop	600	0.000000	0.000000	38.0	0.993333	47.0
+gender	step48_stop	120	0.000000	0.233333	2.0	0.375000	4.0
+gender	eos_step48_stop	120	0.000000	0.000000	36.0	0.991667	47.0
+political_ideology	step48_stop	120	0.000000	0.100000	6.0	0.475000	8.0
+political_ideology	eos_step48_stop	120	0.000000	0.000000	38.0	1.000000	47.0
+profession	step48_stop	120	0.016667	0.183333	4.0	0.408333	7.0
+profession	eos_step48_stop	120	0.000000	0.000000	38.0	0.991667	47.0
+race	step48_stop	120	0.000000	0.158333	3.0	0.458333	5.5
+race	eos_step48_stop	120	0.000000	0.000000	37.0	0.991667	47.0
+religious_ideology	step48_stop	120	0.000000	0.100000	7.0	0.491667	10.5
+religious_ideology	eos_step48_stop	120	0.000000	0.000000	39.0	0.991667	47.0
