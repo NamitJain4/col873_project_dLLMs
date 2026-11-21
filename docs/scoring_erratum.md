@@ -14,7 +14,11 @@ intended Dream objective. The old Dream full and Goldfish adapters were trained
 with the wrong objective and must not be compared to other adapters.
 
 The Dream BBQ and BOLD runs use the checkpoint's official `diffusion_generate`
-implementation and remain valid. All AR and LLaDA runs remain valid.
+implementation and are unaffected by the masked-score alignment error. The
+original full BOLD decoder removed special EOS tokens without truncating at
+the first EOS, so those outputs describe a fixed-span decoding policy. The
+new paired BOLD replication applies first-EOS truncation in both conditions.
+All AR and LLaDA masked-score runs are unaffected by the Dream alignment error.
 
 The correction is implemented in `src/dllm_eval/scoring.py`. Corrected outputs
 use `aligned_v2` in both their file names and `score_method` provenance. All

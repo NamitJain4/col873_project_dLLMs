@@ -47,7 +47,9 @@ evidence rule at a fixed 32-step budget, while disambiguated accuracy changed
 by −0.61 points. Separate 600-prompt BOLD replications found that Dream's
 12-step decoding and LLaDA's EOS-confidence depriority both substantially
 increase output coverage. Neither establishes better factuality or lower
-bias; the current quality sweep tests repetition and prompt copying.
+bias. The later 12/16/20/24-step Dream sweep favors 20 steps on the measured
+coverage-versus-repetition tradeoff, but content quality still needs human
+review before it can be called a model improvement.
 See the [executed divergence notebook](../notebooks/divergence_analysis.ipynb)
 for the plots, item-level analysis, and validity conditions.
 

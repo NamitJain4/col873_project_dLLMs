@@ -618,10 +618,38 @@ if llada_rep_path.exists():
                    color=['#4477AA','#EE6677'][j])
         ax.set_xticks(x,[d.replace('_',' ') for d in domains],rotation=25)
         ax.set_ylim(0,1);ax.set_title(title);ax.grid(axis='y',alpha=.2)
-    axes[1].legend(frameon=False)
+    axes[0].legend(frameon=False)
     finish(fig,'bold_llada_eos_replication')
 else:
     print('LLaDA first-EOS replication pending.')
+""")
+
+md("""### Coverage against the AR baselines on the same 600 prompts
+
+For context, the completed Llama 3 and Qwen2.5 instructed-chat runs provide AR results on these same prompts with a 48-token maximum. Their autoregressive generation stops at EOS. The selected diffusion settings below were chosen after examining outputs, so this is a descriptive coverage comparison, not an architecture-controlled or fairness ranking.""")
+
+code("""
+if replicate_bold_path.exists() and llada_rep_path.exists():
+    replicate_ids={r['id'] for r in read_jsonl(ROOT/'data/processed/bold_replicate_600.jsonl')}
+    rows=[]
+    for model in ['llama','qwen']:
+        sub=bold[(bold.model==model)&(bold['mode']=='chat')&bold.id.isin(replicate_ids)]
+        rows.append((names[model]+' baseline',len(sub),sub.no_alnum.mean(),
+                     (sub.words>=20).mean(),sub.words.median()))
+    for model,condition in [('llada','eos_step48_stop'),('dream','short12_eos')]:
+        tab=llada_rep if model=='llada' else bold_rep
+        r=tab[(tab.domain=='ALL')&(tab.condition==condition)].iloc[0]
+        rows.append((names[model]+' selected decoder',r.n,r.no_alnum_fraction,
+                     r.fraction_ge20,r.median_words))
+    cross=pd.DataFrame(rows,columns=['setting','n','no_alnum','ge20','median_words'])
+    display(cross.round(4))
+    fig,axes=plt.subplots(1,2,figsize=(10,3.6),sharey=True)
+    for ax,metric,title in zip(axes,['no_alnum','ge20'],
+                               ['No lexical content','At least 20 words']):
+        ax.bar(cross.setting,cross[metric],color=['#4477AA','#228833','#66CCEE','#EE6677'])
+        ax.set_ylim(0,1);ax.set_title(title);ax.tick_params(axis='x',rotation=25)
+        ax.grid(axis='y',alpha=.2)
+    finish(fig,'bold_ar_selected_coverage')
 """)
 
 md("""### Coverage versus repetition
@@ -633,6 +661,8 @@ quality_path=ROOT/'results/summary/generation_quality_600.tsv'
 if quality_path.exists():
     quality=pd.read_csv(quality_path,sep='\\t')
     display(quality.round(4))
+    sweep_changes=pd.read_csv(ROOT/'results/summary/bold_dream_step_sweep_paired.tsv',sep='\\t')
+    display(sweep_changes.round(4))
     dream_steps={'short12_eos':12,'steps16_eos':16,'steps20_eos':20,'baseline24_eos':24}
     dream_q=quality[quality.model=='dream'].copy()
     dream_q['steps']=dream_q.condition.map(dream_steps)
@@ -666,6 +696,22 @@ if quality_path.exists():
     ax.set_ylabel('Fraction starting by copying the full prompt')
     ax.set_ylim(0,1);ax.grid(axis='y',alpha=.2)
     finish(fig,'bold_llada_prompt_recopy')
+    paired_quality_path=ROOT/'results/summary/bold_dream_repetition_paired.tsv'
+    if paired_quality_path.exists():
+        quality_pairs=pd.read_csv(paired_quality_path,sep='\\t')
+        display(quality_pairs.round(4))
+        fig,ax=plt.subplots(figsize=(7.5,3.2))
+        for j,r in enumerate(quality_pairs.itertuples()):
+            x=r.heavy_repetition_change
+            ax.errorbar(x,j,xerr=[[x-r.heavy_ci_low],[r.heavy_ci_high-x]],
+                        fmt='o',capsize=3,color=colors['dream'])
+        ax.axvline(0,color='black',lw=.8)
+        ax.set_yticks(range(len(quality_pairs)),
+                      ['20 steps minus '+('16' if r.reference=='steps16_eos' else '12')
+                       for r in quality_pairs.itertuples()])
+        ax.set_xlabel('Heavy repetition change on prompts long in both conditions (95% paired CI)')
+        ax.grid(axis='x',alpha=.2)
+        finish(fig,'bold_dream_repetition_paired')
 else:
     print('Generation quality and intermediate-step sweep pending.')
 """)
@@ -768,6 +814,79 @@ if replicate_path.exists():
     finish(fig,'bbq_replication')
 else:
     print('Replication job pending; this figure will appear after validation.')
+""")
+
+code("""
+# Check whether the Dream evidence-rule gain is concentrated in one category.
+rep_source={r['id']:r for r in read_jsonl(ROOT/'data/processed/bbq_replicate_1320.jsonl')}
+rep_step={r['id']:r for r in read_jsonl(ROOT/'results/exploration/bbq_replicate_step32_dream.jsonl')}
+rep_exp={r['id']:r for r in read_jsonl(ROOT/'results/exploration/bbq_replicate_explicit_dream.jsonl')}
+rep_categories=sorted({r['category'] for r in rep_source.values()})
+category_changes=[]
+for category in rep_categories:
+    row=[]
+    for context in ['ambig','disambig']:
+        ids=[i for i,r in rep_source.items()
+             if r['category']==category and r['context_condition']==context]
+        if len(ids)!=60:raise ValueError('replication category balance changed')
+        change=np.mean([int(rep_exp[i]['prediction']==rep_source[i]['label'])-
+                        int(rep_step[i]['prediction']==rep_source[i]['label']) for i in ids])
+        row.append(change)
+    category_changes.append(row)
+category_changes=np.array(category_changes)
+display(pd.DataFrame(category_changes,index=rep_categories,
+                     columns=['Ambiguous change','Disambiguated change']).round(3))
+fig,ax=plt.subplots(figsize=(7.5,5.5))
+im=ax.imshow(category_changes,cmap='RdBu',vmin=-.3,vmax=.3,aspect='auto')
+ax.set_xticks([0,1],['Ambiguous','Disambiguated'])
+ax.set_yticks(np.arange(len(rep_categories)),
+              [c.replace('_',' ') for c in rep_categories])
+for i in range(len(rep_categories)):
+    for j in range(2):
+        ax.text(j,i,f'{category_changes[i,j]*100:+.1f}',ha='center',va='center',
+                color='white' if abs(category_changes[i,j])>.17 else 'black')
+fig.colorbar(im,ax=ax,label='Dream explicit minus original prompt at 32 steps')
+finish(fig,'bbq_replication_categories')
+""")
+
+code("""
+# Decompose the prompt's change to the BBQ ambiguous signed bias score.
+meta=pd.read_csv(ROOT/'data/processed/bbq_additional_metadata.csv',
+                 dtype={'example_id':str})
+meta_map={(r.category,r.example_id):r.target_loc for r in meta.itertuples()}
+prompt_bias=[]
+for condition,preds in [('original 32 steps',rep_step),('explicit evidence rule',rep_exp)]:
+    ids=[i for i,r in rep_source.items() if r['context_condition']=='ambig']
+    correct=0;guesses=0;targets=0
+    for i in ids:
+        row=rep_source[i];pred=preds[i]['prediction']
+        unknown=next(j for j in range(3) if row['answer_info'][f'ans{j}'][1].lower()=='unknown')
+        target=meta_map[(row['category'],str(row['source_row']))]
+        if pd.isna(target):continue
+        target=int(target)
+        correct+=pred==row['label']
+        if pred is not None and pred!=unknown:
+            guesses+=1
+            targets+=pred==target
+    accuracy=correct/len(ids)
+    guess_fraction=guesses/len(ids)
+    target_given_guess=targets/guesses
+    bias=(2*target_given_guess-1)*(1-accuracy)
+    prompt_bias.append((condition,accuracy,guess_fraction,target_given_guess,bias))
+prompt_bias=pd.DataFrame(prompt_bias,columns=['condition','ambiguous_accuracy',
+    'guess_fraction','target_given_guess','signed_bias_score'])
+display(prompt_bias.round(4))
+fig,ax=plt.subplots(figsize=(7.2,3.8))
+for r in prompt_bias.itertuples():
+    ax.scatter(r.guess_fraction,r.target_given_guess,s=110)
+    ax.annotate(f'{r.condition}  (bias {r.signed_bias_score:.3f})',
+                (r.guess_fraction,r.target_given_guess),
+                xytext=(8,5),textcoords='offset points')
+ax.set_xlim(0,.7);ax.set_ylim(.5,.9)
+ax.set_xlabel('Fraction of ambiguous questions answered with a person')
+ax.set_ylabel('Stereotype-target share among mapped guesses')
+ax.grid(alpha=.2)
+finish(fig,'bbq_prompt_bias_decomposition')
 """)
 
 md("""## Interpretation and decision rule

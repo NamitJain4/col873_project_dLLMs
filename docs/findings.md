@@ -69,6 +69,18 @@ missing-evidence behavior; its effect is larger than Qwen's here. More
 diffusion steps alone reduced Dream ambiguous accuracy by 3.03 points versus
 its 16-step baseline. A future full-BBQ prompt run would establish the exact
 complete-extract gain.
+The explicit-versus-original 32-step ambiguous gain is positive in all 11 BBQ
+categories on the replication sample (category changes range from +4/60 to
++16/60 correct). Disambiguated changes are between −2/60 and +1/60.
+The ambiguous gain also appears when the correct unknown answer is at A, B,
+or C (respectively +40/205, +36/254, and +55/201 correct), so a single
+answer-letter preference does not explain it.
+Among ambiguous items, 142 Dream answers changed from incorrect to correct
+under the explicit rule and 11 changed from correct to incorrect. Its signed
+BBQ bias score fell from 0.2182 to 0.1379. The conditional share of guesses
+that selected the stereotyped target actually rose slightly (72.6% to 74.3%);
+the lower signed score came from guessing less often. This is why both
+abstention and stereotype direction must be shown when interpreting BBQ bias.
 
 **Dream diffusion schedule, BOLD.** On 600 new prompts, both 48-token runs
 used first-EOS truncation. Reducing steps from 24 to 12 changed no-lexical-
@@ -77,6 +89,9 @@ The share with at least 20 words rose from 0% to 55.50%: +55.50 points
 [51.83, 59.33]. First-token EOS fell from 24.67% to 4.33%. This happens
 across all five BOLD domains. It demonstrates that the step schedule can
 explain a substantial part of Dream's very short baseline outputs.
+The completed Llama 3 and Qwen2.5 chat baselines on the same 600 prompt IDs
+reach at least 20 words on 98.33% and 98.83%, respectively. Dream's selected
+12-step setting therefore still has a large coverage gap to those AR models.
 
 **LLaDA EOS priority, BOLD.** On the same 600 prompts, LLaDA was run at 48
 tokens and 48 steps with and without putting predicted EOS last in fill
@@ -86,6 +101,9 @@ at least 20 words rose from 44.17% to 99.33%: +55.17 points [51.33, 59.17].
 Median first EOS position moved from 7 to 47, the last token slot. This
 directly supports an EOS-placement mechanism for output coverage in our
 LLaDA adapter.
+LLaDA's selected setting reaches a comparable *length frequency* to the AR
+baselines, though it copies the source prompt more often and has not been
+judged for content quality.
 
 ## Quality limits and next decision
 
@@ -93,9 +111,18 @@ The BOLD interventions improve **coverage**, not established factuality,
 continuation quality, or fairness. Manual inspection found repeated words and
 invented facts in some Dream 12-step outputs. LLaDA's EOS intervention raised
 the fraction of outputs that start by copying the full prompt from about
-31.3% to 68.2%. The 16/20-step Dream sweep and repeated-trigram diagnostic
-are meant to reveal whether an intermediate setting offers a more useful
-coverage-quality balance. A small blinded human assessment of factuality,
+31.3% to 68.2%. In the post hoc Dream sweep on the same 600 prompts, at least
+20 words appeared on 55.5%, 61.7%, 61.8%, and 0% of outputs at 12, 16, 20,
+and 24 steps, respectively. Among those long outputs, the share with at least
+20% repeated trigrams was about 19.5%, 20.8%, and 14.3% at 12, 16, and 20
+steps. It is undefined at 24 steps because none was long. Thus 20 steps is
+the most promising tested setting by these two *limited* diagnostics. Its
+coverage advantage over 12 steps is a paired +6.33 points [2.17, 10.67].
+On prompts where both outputs had at least 20 words, the 20-step setting's
+heavy-repetition rate was 6.94 points lower than 16 steps [−11.67, −2.22]
+and 8.61 points lower than 12 steps [−14.23, −3.00] by paired item bootstrap.
+There is no evidence here that 20 steps produces more factual or relevant
+text. A small blinded human assessment of factuality,
 coherence, continuation relevance, and stereotype content would still be
 needed before calling either BOLD setting a quality or fairness improvement.
 

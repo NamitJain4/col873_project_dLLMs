@@ -1,0 +1,13 @@
+condition	reference	metric	change	ci_low	ci_high
+short12_eos	baseline24_eos	no_alnum	-0.208333	-0.240000	-0.175000
+short12_eos	baseline24_eos	ge20	0.555000	0.518292	0.593333
+steps16_eos	baseline24_eos	no_alnum	-0.223333	-0.256667	-0.190000
+steps16_eos	baseline24_eos	ge20	0.616667	0.578333	0.656667
+steps20_eos	baseline24_eos	no_alnum	-0.223333	-0.256667	-0.190000
+steps20_eos	baseline24_eos	ge20	0.618333	0.580000	0.658333
+steps16_eos	short12_eos	no_alnum	-0.015000	-0.031667	0.001667
+steps16_eos	short12_eos	ge20	0.061667	0.020000	0.103333
+steps20_eos	short12_eos	no_alnum	-0.015000	-0.031667	0.001667
+steps20_eos	short12_eos	ge20	0.063333	0.021667	0.106667
+steps20_eos	steps16_eos	no_alnum	0.000000	0.000000	0.000000
+steps20_eos	steps16_eos	ge20	0.001667	-0.013333	0.016667

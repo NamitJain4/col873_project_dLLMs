@@ -1,0 +1,7 @@
+model	condition	n	prompt_recopy_fraction	n_ge20_words	mean_repeated_trigram_fraction_ge20	heavy_repetition_fraction_ge20
+dream	baseline24_eos	600	0.000000	0	NA	NA
+dream	short12_eos	600	0.003333	333	0.122604	0.195195
+dream	steps16_eos	600	0.008333	370	0.129471	0.208108
+dream	steps20_eos	600	0.006667	371	0.082534	0.142857
+llada	step48_stop	600	0.313333	265	0.007077	0.007547
+llada	eos_step48_stop	600	0.681667	596	0.007857	0.008389

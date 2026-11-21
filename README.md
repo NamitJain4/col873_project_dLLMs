@@ -75,7 +75,7 @@ The controlled synthetic canary fine-tuning, base and tuned MIA, Goldfish-style 
 
 ## Shared results
 
-The [executed divergence notebook](notebooks/divergence_analysis.ipynb) contains the current analysis and 24 figures, including full BBQ comparisons, BOLD coverage and sentiment diagnostics, corrected Dream pair/MIA results, and nonoverlapping BBQ and BOLD replications. The [consolidated comparison](results/summary/final_comparison.csv) now includes the corrected Dream values. The older [full comparison notebook](notebooks/final_comparison.ipynb) is retained as a historical artifact; its Dream pair, MIA, Goldfish, and utility plots are invalid. See [the erratum](docs/scoring_erratum.md) before using old figures or detailed TSVs.
+The [executed divergence notebook](notebooks/divergence_analysis.ipynb) contains the current analysis and 30 figures, including full BBQ comparisons, BOLD coverage and sentiment diagnostics, corrected Dream pair/MIA results, and nonoverlapping BBQ and BOLD replications. The [consolidated comparison](results/summary/final_comparison.csv) now includes the corrected Dream values. The older [full comparison notebook](notebooks/final_comparison.ipynb) is retained as a historical artifact; its Dream pair, MIA, Goldfish, and utility plots are invalid. See [the erratum](docs/scoring_erratum.md) before using old figures or detailed TSVs.
 
 Raw benchmark extracts, per-example outputs, adapters, and PBS logs remain local because they are large or contain generated text. The pinned data sources and input hashes in `docs/` support reruns. Teammates need their own Hugging Face access to the gated Meta Llama checkpoint to reproduce it.
 

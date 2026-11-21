@@ -154,6 +154,38 @@ def main():
     write_tsv(ROOT / "results/summary/bold_replicate_paired_changes.tsv",
               ("metric", "short12_minus_baseline24", "ci_low", "ci_high"), bold_changes)
 
+    dream_sweep_changes = []
+    for condition, reference in (("short12_eos", "baseline24_eos"),
+                                 ("steps16_eos", "baseline24_eos"),
+                                 ("steps20_eos", "baseline24_eos"),
+                                 ("steps16_eos", "short12_eos"),
+                                 ("steps20_eos", "short12_eos"),
+                                 ("steps20_eos", "steps16_eos")):
+        for metric in ("no_alnum", "ge20"):
+            grouped = []
+            for domain in sorted({r["domain"] for r in bold_replication.values()}):
+                changes = []
+                for item_id in sorted(i for i, r in bold_replication.items()
+                                      if r["domain"] == domain):
+                    after = bold_replicate_modes[condition][item_id]["output"]
+                    before = bold_replicate_modes[reference][item_id]["output"]
+                    measure = ((lambda s: not any(ch.isalnum() for ch in s))
+                               if metric == "no_alnum" else
+                               (lambda s: len(s.split()) >= 20))
+                    changes.append(int(measure(after)) - int(measure(before)))
+                grouped.append(np.array(changes))
+            rng = np.random.default_rng(42)
+            draws = np.zeros(2000)
+            for changes in grouped:
+                draws += changes[rng.integers(120, size=(2000, 120))].mean(axis=1) / 5
+            lo, hi = np.quantile(draws, [.025, .975])
+            dream_sweep_changes.append((condition, reference, metric,
+                                        f"{np.mean(grouped):.6f}",
+                                        f"{lo:.6f}", f"{hi:.6f}"))
+    write_tsv(ROOT / "results/summary/bold_dream_step_sweep_paired.tsv",
+              ("condition", "reference", "metric", "change", "ci_low", "ci_high"),
+              dream_sweep_changes)
+
     llada_modes = {}
     for condition in ("step48_stop", "eos_step48_stop"):
         path = EXPLORATION / f"bold_replicate_{condition}_llada.jsonl"
@@ -218,9 +250,10 @@ def main():
                 prompt = item["prompt"].strip().casefold()
                 copied += bool(prompt and continuation.startswith(prompt))
                 words = re.findall(r"\b\w+\b", continuation)
-                if len(continuation.split()) >= 20 and len(words) >= 3:
+                if len(continuation.split()) >= 20:
                     triples = [tuple(words[i:i + 3]) for i in range(len(words) - 2)]
-                    long_repetitions.append((len(triples) - len(set(triples))) / len(triples))
+                    long_repetitions.append((len(triples) - len(set(triples))) / len(triples)
+                                            if triples else 0.0)
             quality.append((model, condition, 600, f"{copied/600:.6f}",
                             len(long_repetitions),
                             f"{statistics.mean(long_repetitions):.6f}" if long_repetitions else "NA",
@@ -230,6 +263,36 @@ def main():
               ("model", "condition", "n", "prompt_recopy_fraction", "n_ge20_words",
                "mean_repeated_trigram_fraction_ge20",
                "heavy_repetition_fraction_ge20"), quality)
+
+    quality_pairs = []
+    def trigram_repetition(output):
+        words = re.findall(r"\b\w+\b", output.casefold())
+        triples = [tuple(words[i:i + 3]) for i in range(len(words) - 2)]
+        return (len(triples) - len(set(triples))) / len(triples) if triples else 0.0
+    for condition, reference in (("steps20_eos", "steps16_eos"),
+                                 ("steps20_eos", "short12_eos")):
+        ids = sorted(i for i in bold_replication
+                     if len(bold_replicate_modes[condition][i]["output"].split()) >= 20
+                     and len(bold_replicate_modes[reference][i]["output"].split()) >= 20)
+        after = np.array([trigram_repetition(bold_replicate_modes[condition][i]["output"])
+                          for i in ids])
+        before = np.array([trigram_repetition(bold_replicate_modes[reference][i]["output"])
+                           for i in ids])
+        delta = after - before
+        heavy_delta = (after >= .20).astype(int) - (before >= .20).astype(int)
+        rng = np.random.default_rng(42)
+        draw_ids = rng.integers(len(ids), size=(2000, len(ids)))
+        mean_ci = np.quantile(delta[draw_ids].mean(axis=1), [.025, .975])
+        heavy_ci = np.quantile(heavy_delta[draw_ids].mean(axis=1), [.025, .975])
+        quality_pairs.append((condition, reference, len(ids),
+                              f"{delta.mean():.6f}", f"{mean_ci[0]:.6f}",
+                              f"{mean_ci[1]:.6f}", f"{heavy_delta.mean():.6f}",
+                              f"{heavy_ci[0]:.6f}", f"{heavy_ci[1]:.6f}"))
+    write_tsv(ROOT / "results/summary/bold_dream_repetition_paired.tsv",
+              ("condition", "reference", "common_long_prompts",
+               "mean_repetition_change", "mean_ci_low", "mean_ci_high",
+               "heavy_repetition_change", "heavy_ci_low", "heavy_ci_high"),
+              quality_pairs)
 
     source_bbq = {r["id"]: r for r in rows(ROOT / "data/processed/bbq_explore_132.jsonl")}
     bbq_summary = []

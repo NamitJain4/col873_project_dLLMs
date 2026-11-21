@@ -121,6 +121,7 @@ Its sample and contrasts are fixed before the replication outputs are read.
 | LLaDA EOS-priority replication with first-EOS decoding | `193794.pragya` | `results/exploration/bold_replicate_{step48_stop,eos_step48_stop}_llada.jsonl` |
 | Dream 16/20-step quality sweep | `194929.pragya` | `results/exploration/bold_replicate_steps{16,20}_eos_dream.jsonl` |
 | Dependent CPU validation, corrected summaries, notebook render | `193786.pragya` | `results/summary/exploration_*.tsv`, corrected headline CSV, executed notebook |
+| Post-sweep CPU quality summary and notebook refresh | `194967.pragya` | `results/summary/generation_quality_600.tsv`, executed notebook and new figures |
 
 The model jobs use offline cached checkpoints, the same pinned revisions
 as the baseline, one GPU each, and the course PBS project/account. They append
@@ -134,9 +135,9 @@ deprioritization could inadvertently make already filled positions eligible
 again. Both are fixed, with regression tests. The failed probes produced zero
 rows; their replacements and the new CPU finalizer are listed above. The
 dependent jobs were canceled by PBS after a failed `afterok` parent. The
-The CPU job completed after its eight GPU dependencies. The post hoc 16/20-step
-sweep was submitted later; rerun the CPU finalizer and notebook renderer after
-it finishes to add its quality plots.
+The first CPU job completed after its eight GPU dependencies. The post hoc
+16/20-step sweep and its dependent second CPU job also completed. The latter
+refreshed the quality tables and executed notebook.
 
 ## First probe observations (exploratory subsets)
 
@@ -175,6 +176,14 @@ items, while the step-only change is −3.03 points. Qwen's same evidence rule
 is +3.48 points ambiguous and −2.27 points disambiguated. The prompt effect
 is therefore much larger for this Dream checkpoint, but the comparison does
 not isolate architecture or training history.
+Its ambiguous gain over the original 32-step prompt is positive in all 11
+categories (from +4/60 to +16/60 correct per category); disambiguated changes
+remain between −2/60 and +1/60.
+The paired ambiguous transitions are 142 wrong-to-right versus 11
+right-to-wrong. The signed BBQ bias score falls from 0.2182 to 0.1379 because
+Dream guesses less often; among its remaining guesses the stereotype-target
+share rises slightly from 72.6% to 74.3%. The prompt changes abstention more
+than conditional stereotype direction.
 
 On 600 new BOLD prompts with first-EOS truncation in **both** conditions,
 Dream's 48-token/12-step continuation has no lexical content on 4.50% versus
@@ -193,6 +202,18 @@ content to 0% when EOS is given low fill priority, a paired −15.50 points
 the fraction of outputs that start by copying the whole prompt rose from
 31.3% to 68.2% in a preliminary quality check. Longer output is not by itself
 an improvement in continuation quality.
+
+The post hoc Dream 16/20-step sweep on the same 600 prompts found 370/600 and
+371/600 outputs of at least 20 words, versus 333/600 at 12 steps and 0/600 at
+24 steps. The 20-versus-12 paired gain is +6.33 points [2.17, 10.67]. Among
+20-word outputs, the share with at least 20% repeated trigrams is 19.5% at
+12 steps, 20.8% at 16 steps, and about 14.3% at 20 steps. The 24-step
+long-output repetition rate is undefined. The 20-step setting is a candidate
+for a better coverage-repetition balance, but these text-level diagnostics do
+not establish quality, truth, or fairness.
+Among prompts with at least 20 words in both conditions, 20 steps reduced the
+heavy-repetition rate by 6.94 points versus 16 [−11.67, −2.22] and 8.61
+points versus 12 [−14.23, −3.00] in paired item bootstrap intervals.
 
 ## Decision rules
 
