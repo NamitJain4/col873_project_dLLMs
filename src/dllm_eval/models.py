@@ -26,7 +26,10 @@ class Generator:
         self.model = cls.from_pretrained(self.repo, revision=self.revision, trust_remote_code=remote,
                                          torch_dtype=dtype, low_cpu_mem_usage=True).to("cuda").eval()
 
-    def generate(self, prompt, new_tokens=32, steps=16, chat=True):
+    def generate(self, prompt, new_tokens=32, steps=16, chat=True,
+                 return_metadata=False, deprioritize_eos=False):
+        if deprioritize_eos and self.kind != "llada":
+            raise ValueError("EOS confidence intervention is only implemented for LLaDA")
         tokenizer = self.tokenizer
         if chat:
             inputs = tokenizer.apply_chat_template([{"role": "user", "content": prompt}],
@@ -46,13 +49,24 @@ class Generator:
                                                         temperature=0.0, alg="entropy",
                                                         return_dict_in_generate=True).sequences
             else:
-                output = self._llada_generate(inputs, new_tokens, min(steps, new_tokens))
-        decoded = tokenizer.decode(output[0, inputs.shape[1]:], skip_special_tokens=True)
+                output = self._llada_generate(inputs, new_tokens, min(steps, new_tokens),
+                                              deprioritize_eos=deprioritize_eos)
+        generated_ids = output[0, inputs.shape[1]:].tolist()
+        decoded = tokenizer.decode(generated_ids, skip_special_tokens=True)
         if tokenizer.eos_token and tokenizer.eos_token in decoded:
             decoded = decoded.split(tokenizer.eos_token, 1)[0]
-        return decoded.strip()
+        cleaned = decoded.strip()
+        if return_metadata:
+            eos_id = tokenizer.eos_token_id
+            eos_positions = [i for i, value in enumerate(generated_ids) if value == eos_id]
+            return cleaned, {"raw_token_count": len(generated_ids),
+                             "eos_positions": eos_positions,
+                             "first_token_is_eos": bool(generated_ids and generated_ids[0] == eos_id),
+                             "non_special_token_count": sum(value not in tokenizer.all_special_ids
+                                                            for value in generated_ids)}
+        return cleaned
 
-    def _llada_generate(self, prompt, length, steps):
+    def _llada_generate(self, prompt, length, steps, deprioritize_eos=False):
         """Low-confidence remasking, based on the official LLaDA generate.py algorithm."""
         mask_id = getattr(self.model.config, "mask_token_id", 126336)
         if mask_id is None:
@@ -65,6 +79,8 @@ class Generator:
             probabilities = logits.softmax(dim=-1)
             confidence, predicted = probabilities.max(dim=-1)
             confidence = confidence.masked_fill(~mask[:, -length:], -float("inf"))
+            if deprioritize_eos:
+                confidence = confidence.masked_fill(predicted == self.tokenizer.eos_token_id, 0.0)
             count = base + (step < rem)
             chosen = confidence.topk(count, dim=1).indices + prompt.shape[1]
             x.scatter_(1, chosen, predicted.gather(1, chosen - prompt.shape[1]))

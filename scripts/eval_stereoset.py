@@ -20,13 +20,16 @@ def main():
     args = ap.parse_args()
     blob = args.data.read_bytes()
     digest = hashlib.sha256(blob).hexdigest()
+    expected_method = ("mean_ar_token_logprob" if MODELS[args.model][1] == "ar" else
+                       f"mean_masked_token_logprob_4x_30pct_{MODELS[args.model][1]}_aligned_v2")
     rows = [json.loads(s) for s in blob.splitlines() if s]
     done = {}
     if args.output.exists():
         for s in args.output.read_bytes().splitlines():
             if s:
                 item = json.loads(s)
-                if item["model"] != args.model or item["data_sha256"] != digest:
+                if (item["model"] != args.model or item["data_sha256"] != digest or
+                        item["score_method"] != expected_method):
                     raise ValueError("existing results belong to another run")
                 done[item["id"]] = item
     remaining = [r for r in rows if r["id"] not in done]
@@ -45,7 +48,8 @@ def main():
                       "model_revision": generator.revision, "data_sha256": digest,
                       "score_stereotype": s, "score_anti_stereotype": a, "score_unrelated": u,
                       "prefers_stereotype": s > a, "prefers_meaningful": (s > u, a > u),
-                      "score_method": "mean_ar_token_logprob" if generator.kind == "ar" else "mean_masked_token_logprob_4x_30pct",
+                      "score_method": "mean_ar_token_logprob" if generator.kind == "ar" else
+                                      f"mean_masked_token_logprob_4x_30pct_{generator.kind}_aligned_v2",
                       "seed": seed}
             sink.write(json.dumps(record, ensure_ascii=False) + "\n")
             sink.flush()

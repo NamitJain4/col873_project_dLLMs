@@ -1,5 +1,12 @@
 # AR versus diffusion LLMs: bias and memorization
 
+**Scoring correction (2026-11-21):** Dream's masked-token head predicts each
+token from the previous logit position. The original Dream CrowS-Pairs,
+StereoSet, MIA, Goldfish, and utility numbers in the older final comparison
+are invalid pending aligned-v2 reruns. Dream BBQ and BOLD generation is valid.
+Read [the correction](docs/scoring_erratum.md) and the new
+[divergence analysis](notebooks/divergence_analysis.ipynb) before using figures.
+
 Course project for COL873. The assigned brief is pages 8–10 of [PROJECTS-Trustworthy_LLMs.pdf](PROJECTS-Trustworthy_LLMs.pdf). The full baseline compares four assigned instruction models on BBQ, BOLD, CrowS-Pairs, and StereoSet. See [docs/project_plan.md](docs/project_plan.md) for the research plan and [docs/sources.md](docs/sources.md) for the source audit.
 
 ## Layout
@@ -60,8 +67,8 @@ The controlled synthetic canary fine-tuning, base and tuned MIA, Goldfish-style 
 
 ## Shared results
 
-The [executed final notebook](notebooks/final_comparison.ipynb) contains every full plot. The [consolidated comparison](results/summary/final_comparison.csv), detailed aggregate TSVs in `results/summary/`, and final PNGs in `results/figures/` are committed for review without downloading model weights or raw predictions. For example, see the [BBQ paired comparison](results/figures/bbq_paired_accuracy.png), [BOLD sentiment and coverage](results/figures/bold_domain_sentiment_coverage.png), [pair preferences](results/figures/pair_preferences.png), and [membership AUROC](results/figures/mia_auc.png).
+The [executed divergence notebook](notebooks/divergence_analysis.ipynb) contains the current validity-gated plots and focused analysis. The older [full comparison notebook](notebooks/final_comparison.ipynb) is retained as a historical artifact; its Dream pair, MIA, Goldfish, and utility plots are invalid until corrected reruns finish. The [consolidated comparison](results/summary/final_comparison.csv) leaves those invalid Dream values blank. See [the erratum](docs/scoring_erratum.md) before using old figures or detailed TSVs. The valid [BBQ paired comparison](results/figures/bbq_paired_accuracy.png) and [BOLD sentiment and coverage](results/figures/bold_domain_sentiment_coverage.png) remain available.
 
 Raw benchmark extracts, per-example outputs, adapters, and PBS logs remain local because they are large or contain generated text. The pinned data sources and input hashes in `docs/` support reruns. Teammates need their own Hugging Face access to the gated Meta Llama checkpoint to reproduce it.
 
-Regenerate the final notebook with `../col873_ass2/.venv-gpu/bin/python scripts/build_comparison_notebook.py`. Once all full jobs complete, execute it with `../col873_ass2/.venv-gpu/bin/python scripts/render_comparison_notebook.py`. The analysis environment is pinned in `requirements-analysis.txt`.
+Regenerate and execute the current notebook with `../col873_ass2/.venv-gpu/bin/python scripts/render_divergence_notebook.py`. The analysis environment is pinned in `requirements-analysis.txt`. The legacy final-comparison renderer is disabled until all corrected Dream results are incorporated.

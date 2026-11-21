@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+#PBS -N dream_mia_v2
+#PBS -P mausam.inlp.pragya.spons
+#PBS -q standard
+#PBS -l select=1:ncpus=4:ngpus=1:mem=40gb
+#PBS -l walltime=24:00:00
+#PBS -j oe
+#PBS -o logs/
+
+set -euo pipefail
+umask 077
+cd "${PBS_O_WORKDIR:?Submit from repository root}"
+mkdir -p logs checkpoints results/exploration results/summary
+export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 TOKENIZERS_PARALLELISM=false PYTHONUNBUFFERED=1 OMP_NUM_THREADS=4
+PYTHON="${PROJECT_PYTHON:-$PBS_O_WORKDIR/../col873_ass2/.venv-gpu/bin/python}"
+for mode in full goldfish; do
+  adapter="checkpoints/${mode}_dream_aligned_v2"
+  if [[ ! -s "$adapter/run_manifest.json" ]]; then
+    if [[ "$mode" == goldfish ]]; then
+      "$PYTHON" scripts/train_canary.py --model dream --loss-drop-fraction 0.25 --output "$adapter"
+    else
+      "$PYTHON" scripts/train_canary.py --model dream --output "$adapter"
+    fi
+  fi
+done
+"$PYTHON" scripts/eval_canary.py --model dream \
+  --output results/exploration/mia_base_dream_aligned_v2.jsonl
+for mode in full goldfish; do
+  "$PYTHON" scripts/eval_canary.py --model dream \
+    --adapter "checkpoints/${mode}_dream_aligned_v2" \
+    --output "results/exploration/mia_${mode}_dream_aligned_v2.jsonl"
+done
+for mode in base full goldfish; do
+  if [[ "$mode" == base ]]; then
+    "$PYTHON" scripts/eval_utility.py --model dream --mode base \
+      --output results/exploration/utility_base_dream_aligned_v2.jsonl
+  else
+    "$PYTHON" scripts/eval_utility.py --model dream --mode "$mode" \
+      --adapter "checkpoints/${mode}_dream_aligned_v2" \
+      --output "results/exploration/utility_${mode}_dream_aligned_v2.jsonl"
+  fi
+done
+"$PYTHON" scripts/validate_corrected_dream.py --mia
+"$PYTHON" scripts/summarize_canary.py results/exploration/mia_*_dream_aligned_v2.jsonl \
+  > results/summary/dream_mia_aligned_v2.tsv

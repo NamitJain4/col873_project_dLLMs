@@ -9,6 +9,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from dllm_eval.models import Generator, MODELS
+from dllm_eval.scoring import masked_prediction_positions
 
 
 def score(generator, text, seed, masks=4, ratio=0.3):
@@ -37,7 +38,8 @@ def score(generator, text, seed, masks=4, ratio=0.3):
             positions = torch.tensor([eligible[i] for i in perm], device="cuda")
             masked = ids.clone()
             masked[0, positions] = mask_id
-            logits = generator.model(masked).logits[0, positions, :].float()
+            prediction_positions = masked_prediction_positions(generator.kind, positions)
+            logits = generator.model(masked).logits[0, prediction_positions, :].float()
             targets = ids[0, positions]
             scores.append(F.log_softmax(logits, dim=-1).gather(1, targets[:, None]).mean().item())
         return sum(scores) / len(scores)
@@ -51,13 +53,16 @@ def main():
     args = ap.parse_args()
     blob = args.data.read_bytes()
     digest = hashlib.sha256(blob).hexdigest()
+    expected_method = ("mean_ar_token_logprob" if MODELS[args.model][1] == "ar" else
+                       f"mean_masked_token_logprob_4x_30pct_{MODELS[args.model][1]}_aligned_v2")
     rows = [json.loads(s) for s in blob.splitlines() if s]
     done = {}
     if args.output.exists():
         for s in args.output.read_bytes().splitlines():
             if s:
                 item = json.loads(s)
-                if item["model"] != args.model or item["data_sha256"] != digest:
+                if (item["model"] != args.model or item["data_sha256"] != digest or
+                        item["score_method"] != expected_method):
                     raise ValueError("existing results belong to another run")
                 done[item["id"]] = item
     remaining = [r for r in rows if r["id"] not in done]
@@ -74,7 +79,8 @@ def main():
             record = {**row, "model": args.model, "model_repo": generator.repo,
                       "model_revision": generator.revision, "data_sha256": digest,
                       "score_more": more, "score_less": less, "prefers_more": more > less,
-                      "score_method": "mean_ar_token_logprob" if generator.kind == "ar" else "mean_masked_token_logprob_4x_30pct",
+                      "score_method": "mean_ar_token_logprob" if generator.kind == "ar" else
+                                      f"mean_masked_token_logprob_4x_30pct_{generator.kind}_aligned_v2",
                       "seed": seed}
             sink.write(json.dumps(record, ensure_ascii=False) + "\n")
             sink.flush()

@@ -8,6 +8,11 @@ import nbformat as nbf
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "notebooks/final_comparison.ipynb"
 
+raise RuntimeError(
+    "Legacy notebook includes invalid Dream masked-token scores. "
+    "Use scripts/render_divergence_notebook.py until aligned-v2 Dream reruns are incorporated."
+)
+
 
 def md(source):
     return nbf.v4.new_markdown_cell(dedent(source).strip())

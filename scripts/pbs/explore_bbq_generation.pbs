@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+#PBS -N dllm_bbq_probe
+#PBS -P mausam.inlp.pragya.spons
+#PBS -q standard
+#PBS -l select=1:ncpus=4:ngpus=1:mem=40gb
+#PBS -l walltime=04:00:00
+#PBS -j oe
+#PBS -o logs/
+
+set -euo pipefail
+umask 077
+cd "${PBS_O_WORKDIR:?Submit from repository root}"
+test -s data/processed/bbq_explore_132.jsonl
+mkdir -p logs results/exploration
+export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 TOKENIZERS_PARALLELISM=false PYTHONUNBUFFERED=1 OMP_NUM_THREADS=4
+PYTHON="${PROJECT_PYTHON:-$PBS_O_WORKDIR/../col873_ass2/.venv-gpu/bin/python}"
+for model in llada dream; do
+  "$PYTHON" scripts/eval_generation_probe.py --task bbq --model "$model" --condition step32 \
+    --data data/processed/bbq_explore_132.jsonl \
+    --output "results/exploration/bbq_step32_${model}.jsonl"
+done
+for model in llama llada qwen dream; do
+  "$PYTHON" scripts/eval_generation_probe.py --task bbq --model "$model" --condition explicit \
+    --data data/processed/bbq_explore_132.jsonl \
+    --output "results/exploration/bbq_explicit_${model}.jsonl"
+done

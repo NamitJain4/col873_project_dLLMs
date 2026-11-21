@@ -1,5 +1,11 @@
 # Submitted runs (2026-11-14)
 
+**2026-11-21 correction:** Dream's original masked-token pair scores and
+synthetic MIA/Goldfish/utility runs used misaligned logits. See
+[`docs/scoring_erratum.md`](scoring_erratum.md). The jobs below completed as
+recorded, but those Dream measurements must not be used as valid results.
+Aligned-v2 reruns are tracked in [`docs/exploration_protocol.md`](exploration_protocol.md).
+
 The first eight-hour jobs were cancelled during checkpoint download. The Hugging Face cache retained some partial downloads, and the replacement 24-hour jobs below were submitted. Status changes over time; query PBS and inspect `logs/` and `results/` before treating a run as complete.
 
 | Model | BBQ smoke job | Dependent follow-up job | Checkpoint |

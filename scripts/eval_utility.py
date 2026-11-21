@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-from dllm_eval.models import Generator
+from dllm_eval.models import Generator, MODELS
 from train_canary import source_pair
 from eval_canary import response_score
 
@@ -18,15 +18,20 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", choices=("qwen", "llama", "llada", "dream"), required=True)
     ap.add_argument("--mode", choices=("base", "full", "goldfish"), required=True)
+    ap.add_argument("--adapter", type=Path, help="override the checkpoint path for a corrected or exploratory run")
     ap.add_argument("--data", type=Path, default=Path("data/processed/synthetic_mia/utility_holdout.jsonl"))
     ap.add_argument("--output", type=Path, required=True)
     args = ap.parse_args()
     blob = args.data.read_bytes()
     digest = hashlib.sha256(blob).hexdigest()
+    expected_method = ("mean_ar_response_logprob" if MODELS[args.model][1] == "ar" else
+                       f"mean_8x_30pct_masked_response_logprob_{MODELS[args.model][1]}_aligned_v2")
     rows = [json.loads(s) for s in blob.splitlines() if s]
     if len({r["id"] for r in rows}) != len(rows):
         raise ValueError("duplicate utility ids")
-    adapter = Path(f"checkpoints/{args.mode}_{args.model}") if args.mode != "base" else None
+    if args.mode == "base" and args.adapter is not None:
+        ap.error("base mode cannot have an adapter")
+    adapter = (args.adapter or Path(f"checkpoints/{args.mode}_{args.model}")) if args.mode != "base" else None
     adapter_hash = None
     if adapter:
         weights = adapter / "adapter_model.safetensors"
@@ -37,7 +42,8 @@ def main():
             if line:
                 item = json.loads(line)
                 if (item["model"] != args.model or item["mode"] != args.mode or
-                        item["data_sha256"] != digest or item["adapter_sha256"] != adapter_hash):
+                        item["data_sha256"] != digest or item["adapter_sha256"] != adapter_hash or
+                        item["score_method"] != expected_method):
                     raise ValueError("existing output belongs to another utility run")
                 done[item["id"]] = item
     remaining = [r for r in rows if r["id"] not in done]
@@ -61,7 +67,7 @@ def main():
                       "data_sha256": digest, "adapter_sha256": adapter_hash,
                       "response_score": score,
                       "score_method": "mean_ar_response_logprob" if generator.kind == "ar" else
-                                      "mean_8x_30pct_masked_response_logprob", "seed": seed}
+                                      f"mean_8x_30pct_masked_response_logprob_{generator.kind}_aligned_v2", "seed": seed}
             sink.write(json.dumps(record, ensure_ascii=False) + "\n")
             sink.flush()
             os.fsync(sink.fileno())

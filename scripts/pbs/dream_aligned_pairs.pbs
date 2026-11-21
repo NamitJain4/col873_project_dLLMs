@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+#PBS -N dream_pairs_v2
+#PBS -P mausam.inlp.pragya.spons
+#PBS -q standard
+#PBS -l select=1:ncpus=4:ngpus=1:mem=40gb
+#PBS -l walltime=24:00:00
+#PBS -j oe
+#PBS -o logs/
+
+set -euo pipefail
+umask 077
+cd "${PBS_O_WORKDIR:?Submit from repository root}"
+mkdir -p logs results/exploration results/summary
+export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 TOKENIZERS_PARALLELISM=false PYTHONUNBUFFERED=1 OMP_NUM_THREADS=4
+PYTHON="${PROJECT_PYTHON:-$PBS_O_WORKDIR/../col873_ass2/.venv-gpu/bin/python}"
+"$PYTHON" scripts/eval_crows.py --model dream --data data/processed/crows_full.jsonl \
+  --output results/exploration/crows_dream_aligned_v2.jsonl
+"$PYTHON" scripts/eval_stereoset.py --model dream --data data/processed/stereoset_full.jsonl \
+  --output results/exploration/stereoset_dream_aligned_v2.jsonl
+"$PYTHON" scripts/validate_corrected_dream.py --pairs
+"$PYTHON" scripts/summarize_pairs.py results/exploration/crows_dream_aligned_v2.jsonl \
+  results/exploration/stereoset_dream_aligned_v2.jsonl > results/summary/dream_pairs_aligned_v2.tsv

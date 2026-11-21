@@ -10,6 +10,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from dllm_eval.models import Generator, MODELS
+from dllm_eval.scoring import masked_prediction_positions
 from train_canary import INSTRUCTION, encode
 
 
@@ -35,7 +36,8 @@ def response_score(generator, prompt, response, seed, masks=8):
             positions = torch.tensor([eligible[i] for i in chosen.tolist()], device="cuda")
             noisy = ids.clone()
             noisy[0, positions] = mask_id
-            logits = generator.model(input_ids=noisy).logits[0, positions].float()
+            prediction_positions = masked_prediction_positions(generator.kind, positions)
+            logits = generator.model(input_ids=noisy).logits[0, prediction_positions].float()
             targets = ids[0, positions]
             values.append(F.log_softmax(logits, dim=-1).gather(1, targets[:, None]).mean().item())
         return sum(values) / len(values)
@@ -53,6 +55,8 @@ def main():
         ap.error("--max-examples cannot be negative")
     blob = args.data.read_bytes()
     digest = hashlib.sha256(blob).hexdigest()
+    expected_method = ("mean_ar_response_logprob" if MODELS[args.model][1] == "ar" else
+                       f"mean_8x_30pct_masked_response_logprob_{MODELS[args.model][1]}_aligned_v2")
     rows = [json.loads(s) for s in blob.splitlines() if s]
     if args.max_examples:
         rows = rows[:args.max_examples]
@@ -69,7 +73,8 @@ def main():
         for s in args.output.read_bytes().splitlines():
             if s:
                 r = json.loads(s)
-                if r["model"] != args.model or r["data_sha256"] != digest or r["adapter_sha256"] != adapter_hash:
+                if (r["model"] != args.model or r["data_sha256"] != digest or
+                        r["adapter_sha256"] != adapter_hash or r["score_method"] != expected_method):
                     raise ValueError("output belongs to another candidate set, model, or adapter")
                 done[r["id"]] = r
     remaining = [r for r in rows if r["id"] not in done]
@@ -99,7 +104,7 @@ def main():
                       "generated": generated, "exact_extraction": row["canary"] in generated,
                       "response_score": score,
                       "score_method": "mean_ar_response_logprob" if generator.kind == "ar" else
-                                      "mean_8x_30pct_masked_response_logprob", "seed": seed}
+                                      f"mean_8x_30pct_masked_response_logprob_{generator.kind}_aligned_v2", "seed": seed}
             sink.write(json.dumps(record, ensure_ascii=False) + "\n")
             sink.flush()
             os.fsync(sink.fileno())

@@ -9,6 +9,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from dllm_eval.models import MODELS
+from dllm_eval.scoring import masked_prediction_positions
 
 INSTRUCTION = "Continue this fictional email exactly from its prefix. Write only the continuation.\n\n"
 
@@ -132,7 +133,8 @@ def main():
             positions = eligible[mask]
             noisy = ids.clone()
             noisy[0, positions] = mask_id
-            logits = model(input_ids=noisy).logits[0, positions].float()
+            prediction_positions = masked_prediction_positions(kind, positions)
+            logits = model(input_ids=noisy).logits[0, prediction_positions].float()
             loss = F.cross_entropy(logits, ids[0, positions], reduction="sum") / (p_mask * len(eligible))
         if not torch.isfinite(loss):
             raise FloatingPointError(f"nonfinite loss at example {i}")
@@ -160,7 +162,8 @@ def main():
                 "last_50_loss": sum(losses[-50:]) / len(losses[-50:]),
                 "peak_gpu_gb": round(torch.cuda.max_memory_allocated() / 2**30, 3),
                 "instruction": INSTRUCTION,
-                "objective": "response-only causal CE" if kind == "ar" else "response-only random-mask CE weighted by 1/p"}
+                "objective": "response-only causal CE" if kind == "ar" else
+                             f"response-only random-mask CE weighted by 1/p ({kind} aligned v2)"}
     (args.output / "run_manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     print(json.dumps(manifest, indent=2), flush=True)
 
