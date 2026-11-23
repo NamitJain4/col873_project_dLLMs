@@ -7,8 +7,10 @@ are invalid. Their aligned-v2 reruns are complete and used in the current
 notebook and summary. The original BOLD generation used a fixed-span decoder
 that could show text after EOS; the new 600-prompt paired replications use
 first-EOS truncation for both conditions.
-Read [the correction](docs/scoring_erratum.md) and the new
-[divergence analysis](notebooks/divergence_analysis.ipynb) before using figures.
+Start with the [executed project walkthrough](notebooks/project_walkthrough.ipynb):
+it explains the task, all complete runs, metrics, corrected scores, diagnostic
+experiments, 16 plots, and the limits of each conclusion. Read
+[the correction](docs/scoring_erratum.md) before using older figures.
 The current [exploration protocol](docs/exploration_protocol.md) tests
 abstention, generation coverage/EOS, and correct masked-token scoring.
 The [research memo](docs/findings.md) summarizes the completed results and
@@ -24,7 +26,8 @@ Course project for COL873. The assigned brief is pages 8–10 of [PROJECTS-Trust
 - `results/`: raw JSONL predictions stay local; compact summaries and final PNG figures are committed
 - `logs/`: PBS logs (ignored by Git)
 - `docs/`: experiment protocol and literature notes
-- `notebooks/divergence_analysis.ipynb`: current executed analysis and plots
+- `notebooks/project_walkthrough.ipynb`: complete explanation-first walkthrough and plots
+- `notebooks/divergence_analysis.ipynb`: detailed technical audit and additional plots
 - `notebooks/final_comparison.ipynb`: historical analysis with invalid Dream score plots
 
 ## First run
@@ -75,8 +78,20 @@ The controlled synthetic canary fine-tuning, base and tuned MIA, Goldfish-style 
 
 ## Shared results
 
-The [executed divergence notebook](notebooks/divergence_analysis.ipynb) contains the current analysis and 30 figures, including full BBQ comparisons, BOLD coverage and sentiment diagnostics, corrected Dream pair/MIA results, and nonoverlapping BBQ and BOLD replications. The [consolidated comparison](results/summary/final_comparison.csv) now includes the corrected Dream values. The older [full comparison notebook](notebooks/final_comparison.ipynb) is retained as a historical artifact; its Dream pair, MIA, Goldfish, and utility plots are invalid. See [the erratum](docs/scoring_erratum.md) before using old figures or detailed TSVs.
+The [executed project walkthrough](notebooks/project_walkthrough.ipynb) is the
+recommended starting point. It contains 16 figures with explanations and reads
+only compact, shareable tables. The [divergence notebook](notebooks/divergence_analysis.ipynb)
+contains additional technical analysis and 30 figures. The
+[consolidated comparison](results/summary/final_comparison.csv) includes the
+corrected Dream values. The older [full comparison notebook](notebooks/final_comparison.ipynb)
+is a historical artifact; its Dream pair, MIA, Goldfish, and utility plots are
+invalid. See [the erratum](docs/scoring_erratum.md) before using old figures.
 
 Raw benchmark extracts, per-example outputs, adapters, and PBS logs remain local because they are large or contain generated text. The pinned data sources and input hashes in `docs/` support reruns. Teammates need their own Hugging Face access to the gated Meta Llama checkpoint to reproduce it.
 
-Regenerate and execute the current notebook with `../col873_ass2/.venv-gpu/bin/python scripts/render_divergence_notebook.py`. The analysis environment is pinned in `requirements-analysis.txt`. The legacy final-comparison renderer remains disabled to prevent reuse of its invalid Dream plots.
+Re-audit raw outputs and regenerate the walkthrough with
+`../col873_ass2/.venv-gpu/bin/python scripts/build_walkthrough_tables.py` and
+`../col873_ass2/.venv-gpu/bin/python scripts/render_project_walkthrough.py`.
+The analysis environment is pinned in `requirements-analysis.txt`. The legacy
+final-comparison renderer remains disabled to prevent reuse of invalid Dream
+plots.

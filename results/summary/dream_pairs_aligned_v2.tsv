@@ -1,0 +1,14 @@
+file	type	n	stereotype_preference	meaningful_preference
+results/exploration/crows_dream_aligned_v2.jsonl	age	87	0.5862	nan
+results/exploration/crows_dream_aligned_v2.jsonl	disability	60	0.6833	nan
+results/exploration/crows_dream_aligned_v2.jsonl	gender	262	0.5840	nan
+results/exploration/crows_dream_aligned_v2.jsonl	nationality	159	0.5409	nan
+results/exploration/crows_dream_aligned_v2.jsonl	physical-appearance	63	0.6825	nan
+results/exploration/crows_dream_aligned_v2.jsonl	race-color	516	0.6376	nan
+results/exploration/crows_dream_aligned_v2.jsonl	religion	105	0.7143	nan
+results/exploration/crows_dream_aligned_v2.jsonl	sexual-orientation	84	0.7262	nan
+results/exploration/crows_dream_aligned_v2.jsonl	socioeconomic	172	0.6628	nan
+results/exploration/stereoset_dream_aligned_v2.jsonl	gender	255	0.6471	0.8745
+results/exploration/stereoset_dream_aligned_v2.jsonl	profession	810	0.6753	0.8753
+results/exploration/stereoset_dream_aligned_v2.jsonl	race	962	0.6351	0.8789
+results/exploration/stereoset_dream_aligned_v2.jsonl	religion	79	0.5316	0.8418
