@@ -1,97 +1,152 @@
-# AR versus diffusion LLMs: bias and memorization
+# AR versus diffusion LLMs: bias, memorization, and decoding
 
-**Scoring correction (2026-11-21):** Dream's masked-token head predicts each
-token from the previous logit position. The original Dream CrowS-Pairs,
-StereoSet, MIA, Goldfish, and utility numbers in the older final comparison
-are invalid. Their aligned-v2 reruns are complete and used in the current
-notebook and summary. The original BOLD generation used a fixed-span decoder
-that could show text after EOS; the new 600-prompt paired replications use
-first-EOS truncation for both conditions.
-Start with the [executed project walkthrough](notebooks/project_walkthrough.ipynb):
-it explains the task, all complete runs, metrics, corrected scores, diagnostic
-experiments, 16 plots, and the limits of each conclusion. Read
-[the correction](docs/scoring_erratum.md) before using older figures.
-The current [exploration protocol](docs/exploration_protocol.md) tests
-abstention, generation coverage/EOS, and correct masked-token scoring.
-The [research memo](docs/findings.md) summarizes the completed results and
-their limits for teammates.
+COL873 Trustworthy LLMs project. The assignment is on pages 8–10 of
+[PROJECTS-Trustworthy_LLMs.pdf](PROJECTS-Trustworthy_LLMs.pdf). We compare
+LLaDA-8B-Instruct with Meta-Llama-3-8B-Instruct, and
+Dream-v0-Instruct-7B with Qwen2.5-7B-Instruct. Llama-3.1-8B-Instruct is an
+additional historical comparator; the exact assigned Llama 3 checkpoint was
+subsequently run.
 
-Course project for COL873. The assigned brief is pages 8–10 of [PROJECTS-Trustworthy_LLMs.pdf](PROJECTS-Trustworthy_LLMs.pdf). The full baseline compares four assigned instruction models on BBQ, BOLD, CrowS-Pairs, and StereoSet. See [docs/project_plan.md](docs/project_plan.md) for the research plan and [docs/sources.md](docs/sources.md) for the source audit.
+## Start here
 
-## Layout
+Open **[project_walkthrough.ipynb](project_walkthrough.ipynb)** in the repository
+root. It is already executed and contains the project question, model and metric
+explanations, a run ledger, complete benchmark results, the corrected Dream
+scores, diagnostic interventions, 16 plots, and interpretations. Reading the
+notebook requires no GPU, Hugging Face access, or local raw outputs. Its code
+cells read the small committed tables in `results/summary/` if you want to
+rerun the plots.
 
-- `src/dllm_eval/`: model adapters and scoring logic
-- `scripts/`: dataset preparation, evaluation, and PBS jobs
-- `data/processed/`: benchmark extracts (ignored by Git)
-- `results/`: raw JSONL predictions stay local; compact summaries and final PNG figures are committed
-- `logs/`: PBS logs (ignored by Git)
-- `docs/`: experiment protocol and literature notes
-- `notebooks/project_walkthrough.ipynb`: complete explanation-first walkthrough and plots
-- `notebooks/divergence_analysis.ipynb`: detailed technical audit and additional plots
-- `notebooks/final_comparison.ipynb`: historical analysis with invalid Dream score plots
+The headline finding is that there is no uniform diffusion penalty: LLaDA
+beats Llama 3 on BBQ accuracy, while Dream struggles especially when BBQ
+questions lack sufficient evidence. An explicit evidence rule improves Dream's
+ambiguous accuracy on a separate 1,320-item replication. BOLD generation
+coverage is sensitive to denoising steps and EOS handling; greater length alone
+does not establish better content. The notebook gives the numbers and caveats.
 
-## First run
+**Measurement correction:** Dream predicts masked token $i$ from logit position
+$i-1$. The original Dream CrowS-Pairs, StereoSet, synthetic MIA, Goldfish, and
+utility measurements used the wrong alignment. Use only the corrected
+`aligned_v2` Dream rows in the root notebook and current summaries. See
+[docs/scoring_erratum.md](docs/scoring_erratum.md). Original full BOLD decoding
+also used a fixed span that could expose text after EOS; the later 600-prompt
+paired replication truncates at the first EOS in both conditions.
 
-The scripts use Python 3.11, PyTorch with CUDA, Transformers, Accelerate, NumPy, and scikit-learn. On this cluster, `../col873_ass2/.venv-gpu/bin/python` has these packages. Set `PROJECT_PYTHON` to another compatible interpreter if preferred. Hugging Face credentials are read from the existing user login; no token is stored in this repo.
+## Directory guide
+
+| Path | What is there | Where to start |
+| --- | --- | --- |
+| [`project_walkthrough.ipynb`](project_walkthrough.ipynb) | Main, executed, explanation-first notebook | **Start here for results and plots** |
+| [`PROJECTS-Trustworthy_LLMs.pdf`](PROJECTS-Trustworthy_LLMs.pdf) | Course brief; assigned project on pages 8–10 | Check the original requirements |
+| [`docs/`](docs/) | Protocols, research memo, run history, source audit, correction notice | Use the document map below |
+| [`src/dllm_eval/`](src/dllm_eval/) | Model adapters, BBQ prompts/parsing, masked-token scoring | Read when checking implementation |
+| [`scripts/`](scripts/) | Dataset preparation, evaluators, validation, summarization, notebook builders | Run or audit an experiment |
+| [`scripts/pbs/`](scripts/pbs/) | PBS submission files for GPU and CPU jobs | Check job resources and commands |
+| `data/processed/` | Prepared benchmark and synthetic extracts | Local only; ignored by Git |
+| `results/*.jsonl`, `results/exploration/`, `results/mia/`, `results/utility/` | Per-example predictions and diagnostic outputs | Local audit; ignored by Git |
+| [`results/summary/`](results/summary/) | Compact TSV/CSV metric tables, including corrected Dream and notebook inputs | Shared numerical results |
+| [`results/figures/`](results/figures/) | Exported figures from earlier analyses | Supplementary plots |
+| `checkpoints/` | Local LoRA adapters and cached training artifacts | Ignored by Git; large files |
+| `logs/` | PBS stdout/stderr and job logs | Ignored by Git; use for failures |
+| [`notebooks/`](notebooks/) | Earlier technical and historical notebooks | Supplementary or legacy only |
+| [`tests/`](tests/) | Evaluator and scoring regression tests | Check implementation changes |
+| [`requirements-analysis.txt`](requirements-analysis.txt), [`requirements-eval.txt`](requirements-eval.txt) | Analysis and inference dependencies | Set up an environment |
+
+### Which document answers which question?
+
+| Question | File |
+| --- | --- |
+| What happened and what does it mean? | [Main notebook](project_walkthrough.ipynb), then [research memo](docs/findings.md) |
+| Which jobs, checkpoints, and input hashes were used? | [Run history](docs/runs.md), [output inventory](results/summary/walkthrough_output_inventory.tsv) |
+| How were the BBQ/BOLD diagnostics designed? | [Exploration protocol](docs/exploration_protocol.md) |
+| Why were Dream scores rerun? | [Scoring erratum](docs/scoring_erratum.md) |
+| How was synthetic membership tested? | [MIA protocol](docs/mia_protocol.md) |
+| Where did datasets and papers come from? | [Source audit](docs/sources.md) |
+| What project direction was considered? | [Project plan](docs/project_plan.md) |
+
+The technical [divergence notebook](notebooks/divergence_analysis.ipynb) has
+additional plots and item-level diagnostics. The older
+[final comparison notebook](notebooks/final_comparison.ipynb) is **historical**:
+its Dream pair, MIA, Goldfish, and utility plots are invalid. Do not cite those
+plots. The root notebook supersedes it for the current comparison.
+
+## What has run?
+
+All five checkpoints completed full BBQ (58,492 items), raw BOLD and instructed
+BOLD (23,679 source prompts each), CrowS-Pairs (1,508 pairs), and StereoSet
+intrasentence (2,106 examples). The four assigned models also completed the
+controlled synthetic canary baseline, Goldfish-style loss omission, membership
+attack, and 128-record held-out utility check. Corrected Dream score-based
+reruns and the BBQ/BOLD diagnostic replications are complete. The notebook's
+inventory checks expected IDs and source hashes for 83 output files. Five BOLD
+source prompts are blank; aggregate analysis uses 23,674 nonblank prompts.
+
+The pairwise CrowS-Pairs/StereoSet summaries are **within-model preferences**,
+not the benchmarks' official aggregate scores. Synthetic membership results
+come from one-seed LoRA fine-tuning on fictional records, not inferred
+pretraining membership. These limits are explained alongside the plots.
+
+## Reading and reproducing the analysis
+
+From the repository root, open `project_walkthrough.ipynb` in Jupyter. The
+saved outputs already include the figures. To regenerate the notebook from
+the **committed aggregate tables**, run:
 
 ```bash
-python3 scripts/prepare_bbq.py --per-stratum 1 --output data/processed/bbq_pilot.jsonl
-mkdir -p logs results
-for model in qwen llama llada dream; do
-  qsub -v MODEL="$model",DATASET=bbq_pilot scripts/pbs/eval.pbs
-done
+../col873_ass2/.venv-gpu/bin/python scripts/render_project_walkthrough.py
 ```
 
-The pilot uses one ambiguous and one disambiguated example from each of BBQ's 11 categories (22 items). It is a **smoke test**, not a publishable estimate. The job resumes completed predictions. A full extract can be created with `python3 scripts/prepare_bbq.py --full --output data/processed/bbq_full.jsonl`; submit with `DATASET=bbq_full` after reviewing pilot outputs.
+That path is the working Python environment on this cluster. Elsewhere,
+install [`requirements-analysis.txt`](requirements-analysis.txt), register an
+`ipykernel` named `dllm-eval`, and use that Python interpreter with the same
+script. The renderer rebuilds and executes the notebook at the **repository
+root**; it does not run models or submit PBS jobs. Running the notebook cells
+directly also works from the root directory.
 
-The first four jobs were launched before access to the brief's exact `Meta-Llama-3-8B-Instruct` checkpoint was granted. They include `llama31` as a clearly labeled provisional comparator. Access was granted later, and `MODEL=llama` is now the required matched-scale AR run; keep the two Llama versions separate in every table.
-
-Each job writes `results/bbq_<dataset>_<model>.jsonl`. Summarize completed runs with:
+If the large raw outputs are available locally, first re-audit them and rebuild
+the compact notebook inputs:
 
 ```bash
-python3 scripts/summarize_bbq.py results/bbq_bbq_pilot_*.jsonl
+../col873_ass2/.venv-gpu/bin/python scripts/build_walkthrough_tables.py
+../col873_ass2/.venv-gpu/bin/python scripts/render_project_walkthrough.py
 ```
 
-After the balanced BBQ results exist, run `python3 scripts/score_bbq_bias.py --data data/processed/bbq_balanced.jsonl results/bbq_bbq_balanced_*.jsonl` for accuracy, invalid/unknown rates, and the authors' signed bias score. The metadata CSV is stored under `data/processed/` and is kept out of Git.
+`build_walkthrough_tables.py` requires ignored `data/processed/` and raw
+`results/` JSONL files, so a fresh Git clone can **read and rerun the plots**
+but cannot reconstruct raw outputs without those data and model runs. The
+checkpoint revisions, source hashes, PBS job IDs, and original data links are
+recorded under `docs/`.
 
-Do not present this pilot as a completed four model result until all four output files exist and contain 22 valid predictions.
+## Running or checking cluster jobs
 
-Use `python3 scripts/status.py` to check completed row counts across the full pilot matrix, and `qstat -u "$USER"` for PBS state. A held follow-up job is expected while its `afterok` dependency is still running.
+Evaluation uses Python 3.11, PyTorch/CUDA, Transformers, Accelerate, NumPy,
+and scikit-learn. Hugging Face credentials come from the user's existing Hub
+login; no token is stored in this repository. Access to the gated Meta Llama
+checkpoint is required to reproduce that model.
 
-For a second dataset, `python3 scripts/prepare_bold.py --per-domain 8 --output data/processed/bold_pilot.jsonl` builds a BOLD continuation pilot. Submit it with `DATASET=bold_pilot` using the same PBS script. The BOLD outputs are raw continuations; sentiment/regard scoring requires a separately specified classifier and has not been included in the pilot.
+From the repository root, check output counts and PBS state with:
 
-For a third dataset, `python3 scripts/prepare_crows.py --per-type 2 --output data/processed/crows_pilot.jsonl` builds a CrowS-Pairs pilot. Submit it with `DATASET=crows_pilot`. This pilot uses mean token likelihood for AR and repeated masked-token likelihood for diffusion, so it measures within-model pair preference and is **not** the canonical CrowS-Pairs score. Do not compare raw score magnitudes across model types.
+```bash
+python3 scripts/status.py
+qstat -u "$USER"
+```
 
-For StereoSet, `python3 scripts/prepare_stereoset.py --per-type 4 --output data/processed/stereoset_pilot.jsonl` builds an intrasentence dev pilot. Submit it with `DATASET=stereoset_pilot`. The pair preference and meaningful-versus-unrelated checks are preliminary; they do not constitute the official StereoSet composite score.
+The full baseline PBS entry point is [`scripts/pbs/eval.pbs`](scripts/pbs/eval.pbs).
+For example, `MODEL=llada,DATASET=all_full,OFFLINE=1` runs the four full
+baseline extracts sequentially and resumes already completed JSONL rows:
 
-The smoke BBQ extract contains only negative-polarity questions. `python3 scripts/prepare_bbq_balanced.py --output data/processed/bbq_balanced.jsonl` builds a 44 item pilot with both question polarities and both context conditions in every category.
+```bash
+qsub -v MODEL=llada,DATASET=all_full,OFFLINE=1 scripts/pbs/eval.pbs
+```
 
-To schedule all four follow-up pilots after a model's BBQ job succeeds, submit a single `DATASET=followups` job with `qsub -W depend=afterok:BBQ_JOBID -v MODEL=qwen,DATASET=followups scripts/pbs/eval.pbs`. This avoids the queue's per-user pending-job limit. It runs balanced BBQ, BOLD, CrowS-Pairs, and StereoSet in that order, with resumable outputs for each.
+The completed jobs do **not** need to be resubmitted to view the results.
+Read [docs/runs.md](docs/runs.md) for the actual submitted job IDs and
+[docs/exploration_protocol.md](docs/exploration_protocol.md) for diagnostic
+jobs. The scripts in `scripts/validate_*.py` check output completeness and
+provenance before summaries are interpreted. For a small pipeline smoke test,
+see the pilot commands and history in those documents rather than treating a
+22-item pilot as a benchmark estimate.
 
-For the memorization experiment, `python3 scripts/prepare_synthetic_mia.py` creates a controlled fictional corpus and matched member/nonmember candidates. See [docs/mia_protocol.md](docs/mia_protocol.md). The queued short LoRA checks are engineering validation, not privacy results.
-
-## Full runs, November 2026
-
-The pilot matrix and all five full BBQ, raw BOLD, instructed BOLD, CrowS-Pairs, and StereoSet runs are complete and validated. The final comparison notebook has executed successfully. BOLD has a separate instructed continuation condition because raw-prefix LLaDA often returns an empty continuation. Read [docs/runs.md](docs/runs.md) for job IDs and input hashes. `python3 scripts/status.py` reports row counts.
-
-The controlled synthetic canary fine-tuning, base and tuned MIA, Goldfish-style token-loss omission, and separate 128-record held-out utility comparison have completed for all four assigned models. These are one-seed fine-tuning membership experiments with fictional data; see [docs/mia_protocol.md](docs/mia_protocol.md) for interpretation limits.
-
-## Shared results
-
-The [executed project walkthrough](notebooks/project_walkthrough.ipynb) is the
-recommended starting point. It contains 16 figures with explanations and reads
-only compact, shareable tables. The [divergence notebook](notebooks/divergence_analysis.ipynb)
-contains additional technical analysis and 30 figures. The
-[consolidated comparison](results/summary/final_comparison.csv) includes the
-corrected Dream values. The older [full comparison notebook](notebooks/final_comparison.ipynb)
-is a historical artifact; its Dream pair, MIA, Goldfish, and utility plots are
-invalid. See [the erratum](docs/scoring_erratum.md) before using old figures.
-
-Raw benchmark extracts, per-example outputs, adapters, and PBS logs remain local because they are large or contain generated text. The pinned data sources and input hashes in `docs/` support reruns. Teammates need their own Hugging Face access to the gated Meta Llama checkpoint to reproduce it.
-
-Re-audit raw outputs and regenerate the walkthrough with
-`../col873_ass2/.venv-gpu/bin/python scripts/build_walkthrough_tables.py` and
-`../col873_ass2/.venv-gpu/bin/python scripts/render_project_walkthrough.py`.
-The analysis environment is pinned in `requirements-analysis.txt`. The legacy
-final-comparison renderer remains disabled to prevent reuse of invalid Dream
-plots.
+The course brief prohibits using generative AI to write the final submitted
+report. This repository's notebook and notes are internal analysis materials
+for teammates to examine and write from independently.

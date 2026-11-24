@@ -6,7 +6,7 @@ import nbformat as nbf
 
 
 ROOT = Path(__file__).resolve().parents[1]
-TARGET = ROOT / "notebooks/project_walkthrough.ipynb"
+TARGET = ROOT / "project_walkthrough.ipynb"
 cells = []
 
 
@@ -30,7 +30,7 @@ This notebook is designed to be read from top to bottom. It explains the task, m
 
 **Short answer.** There is no single diffusion penalty. LLaDA exceeds Llama 3 on BBQ accuracy, while Dream is far below Qwen on *ambiguous* BBQ questions but above it when evidence is explicit. Dream's ambiguous gap narrows when the prompt tells it to abstain without evidence. Dream's continuation coverage changes sharply with denoising steps; LLaDA's changes with EOS handling. These are effects of specific checkpoints, prompts, and decoders, not a proof about model architecture.
 
-**Navigation.** 1. task and model mechanics → 2. run ledger and metrics → 3. complete baselines → 4. diagnostic interventions → 5. synthesis and next decisions. See [`docs/scoring_erratum.md`](../docs/scoring_erratum.md) and [`docs/exploration_protocol.md`](../docs/exploration_protocol.md) for detailed provenance.
+**Navigation.** 1. task and model mechanics → 2. run ledger and metrics → 3. complete baselines → 4. diagnostic interventions → 5. synthesis and next decisions. See [`docs/scoring_erratum.md`](docs/scoring_erratum.md) and [`docs/exploration_protocol.md`](docs/exploration_protocol.md) for detailed provenance.
 """)
 
 C("""
@@ -117,7 +117,7 @@ M(r"""
 M(r"""
 ### How the jobs were run
 
-The cluster's PBS jobs use one GPU, four CPUs, 40 GB RAM, and an up-to-24-hour walltime. The full baseline was submitted per model with `DATASET=all_full,OFFLINE=1` to [`scripts/pbs/eval.pbs`](../scripts/pbs/eval.pbs). That PBS file runs BBQ, raw BOLD, CrowS-Pairs, and StereoSet sequentially; instructed BOLD is a separate job. Each evaluator records one JSONL row per example, source SHA-256, checkpoint revision, model name, and seed, and resumes completed rows. `scripts/status.py` checks counts; the stronger audit above checks exact IDs and hashes. Corrected Dream and diagnostic jobs are documented in [`docs/exploration_protocol.md`](../docs/exploration_protocol.md). No job is submitted by this notebook.
+The cluster's PBS jobs use one GPU, four CPUs, 40 GB RAM, and an up-to-24-hour walltime. The full baseline was submitted per model with `DATASET=all_full,OFFLINE=1` to [`scripts/pbs/eval.pbs`](scripts/pbs/eval.pbs). That PBS file runs BBQ, raw BOLD, CrowS-Pairs, and StereoSet sequentially; instructed BOLD is a separate job. Each evaluator records one JSONL row per example, source SHA-256, checkpoint revision, model name, and seed, and resumes completed rows. `scripts/status.py` checks counts; the stronger audit above checks exact IDs and hashes. Corrected Dream and diagnostic jobs are documented in [`docs/exploration_protocol.md`](docs/exploration_protocol.md). No job is submitted by this notebook.
 
 | Run | Generation/scoring setup | What to compare |
 |---|---|---|
@@ -128,7 +128,7 @@ The cluster's PBS jobs use one GPU, four CPUs, 40 GB RAM, and an up-to-24-hour w
 | BBQ diagnostic replication | 1,320 different items; Dream 32/16, 32/32 original, 32/32 evidence rule; Qwen original/evidence rule | Paired prompt effect with step count fixed |
 | BOLD diagnostic replication | 600 different prompts; Dream 48 positions × 12/16/20/24 steps; LLaDA 48/48 with/without EOS depriority; first-EOS truncation | Coverage, repetition, prompt recopy; post hoc step sweep caveat |
 
-**Primary benchmark sources:** [BBQ data and scoring](https://github.com/nyu-mll/BBQ), [BOLD](https://github.com/amazon-science/bold), [CrowS-Pairs](https://huggingface.co/datasets/nyu-mll/crows_pairs), and [StereoSet](https://github.com/moinnadeem/StereoSet). The mitigation is motivated by [Goldfish loss](https://arxiv.org/pdf/2406.10209). The exact input hashes and pinned checkpoint revisions are in [`docs/runs.md`](../docs/runs.md). The full BBQ extract retains names variants as separately labeled source categories even though the original source has 11 JSONL files.
+**Primary benchmark sources:** [BBQ data and scoring](https://github.com/nyu-mll/BBQ), [BOLD](https://github.com/amazon-science/bold), [CrowS-Pairs](https://huggingface.co/datasets/nyu-mll/crows_pairs), and [StereoSet](https://github.com/moinnadeem/StereoSet). The mitigation is motivated by [Goldfish loss](https://arxiv.org/pdf/2406.10209). The exact input hashes and pinned checkpoint revisions are in [`docs/runs.md`](docs/runs.md). The full BBQ extract retains names variants as separately labeled source categories even though the original source has 11 JSONL files.
 """)
 
 M(r"""

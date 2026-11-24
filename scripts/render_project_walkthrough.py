@@ -9,7 +9,7 @@ from nbclient import NotebookClient
 
 
 ROOT = Path(__file__).resolve().parents[1]
-TARGET = ROOT / "notebooks/project_walkthrough.ipynb"
+TARGET = ROOT / "project_walkthrough.ipynb"
 subprocess.run([sys.executable, str(ROOT / "scripts/build_project_walkthrough.py")],
                cwd=ROOT, check=True)
 notebook = nbformat.read(TARGET, as_version=4)
